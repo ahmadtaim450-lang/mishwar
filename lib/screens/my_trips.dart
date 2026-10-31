@@ -248,10 +248,14 @@ class TicketScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(color: C.dark, borderRadius: BorderRadius.circular(22)),
-                  child: const Column(children: [
-                    Text('دعاء السفر', style: TextStyle(fontFamily: kFont, color: C.yellow, fontSize: 14)),
-                    SizedBox(height: 8),
-                    Text('سُبحانَ الَّذي سَخَّرَ لَنا هذا وما كُنّا لَهُ مُقرِنين، وإنّا إلى رَبِّنا لَمُنقَلِبون', textAlign: TextAlign.center, style: TextStyle(fontFamily: kFont, color: Colors.white, fontSize: 17, height: 2)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('قبل ما تطلع', style: TextStyle(fontFamily: kFont, color: C.yellow, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    for (final (i, s) in [(Icons.schedule_rounded, 'كون بنقطة الانطلاق قبل 10 دقايق'), (Icons.place_outlined, 'المكان: ${t.fromSpot}، ${t.from}'), (Icons.payments_outlined, 'جهّز ${money(b.total)} كاش'), (Icons.share_location_rounded, 'شارك موقعك مع أهلك وقت تطلع')])
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(children: [Icon(i, color: Colors.white70, size: 18), const SizedBox(width: 10), Expanded(child: Text(s, style: const TextStyle(fontFamily: kFont, color: Colors.white, fontSize: 15)))]),
+                      ),
                   ]),
                 ),
               ),
@@ -508,7 +512,7 @@ class TripDoneScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Enter(child: Text('وصلت ${t.to} بالسلامة', style: const TextStyle(fontFamily: kFont, fontSize: 30, color: Colors.white))),
-            const Enter(delay: 80, child: Text('الحمد لله على السلامة', style: TextStyle(fontFamily: kFont, fontSize: 16, color: C.tint))),
+            Enter(delay: 80, child: Text('نوّرت ${t.to}', style: const TextStyle(fontFamily: kFont, fontSize: 16, color: C.tint))),
             const SizedBox(height: 14),
             Row(children: [
               for (final (a, c) in [('${roadKm(t.from, t.to)}', 'كم'), (t.duration, 'المدة'), ('${t.stops.length + 2}', 'مدن')])
@@ -570,7 +574,7 @@ class _RateScreenState extends State<RateScreen> {
         Center(child: Text(_words[_r], style: const TextStyle(fontFamily: kFont, color: C.primary, fontSize: 18))),
         const SizedBox(height: 16),
         ChipGroup(
-          options: _r >= 4 ? const ['عالوقت', 'سواقة آمنة', 'سيارة نضيفة', 'محترم', 'وقف للصلاة'] : const ['تأخر', 'سواقة سريعة', 'السيارة مو نضيفة', 'غيّر المسار'],
+          options: _r >= 4 ? const ['عالوقت', 'سواقة آمنة', 'سيارة نضيفة', 'محترم', 'وقف للاستراحة'] : const ['تأخر', 'سواقة سريعة', 'السيارة مو نضيفة', 'غيّر المسار'],
           selected: _tags,
           onTap: (i) => setState(() => _tags.contains(i) ? _tags.remove(i) : _tags.add(i)),
         ),
@@ -582,7 +586,7 @@ class _RateScreenState extends State<RateScreen> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: Btn('إرسال التقييم', onTap: () {
             Store.i.rate(widget.b);
-            Store.i.say('شكراً عالتقييم، جزاك الله خير');
+            Store.i.say('شكراً عالتقييم');
             Navigator.pop(context);
           }),
         ),

@@ -152,7 +152,7 @@ class _ChatScreenState extends State<ChatScreen> {
           SizedBox(
             height: 46,
             child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), scrollDirection: Axis.horizontal, children: [
-              for (final q in const ['وصلت عالموعد', 'رح اتأخر 5 دقايق', 'وين بالزبط؟', 'جزاك الله خير'])
+              for (final q in const ['وصلت عالموعد', 'رح اتأخر 5 دقايق', 'وين بالزبط؟', 'شكراً كتير'])
                 Padding(
                   padding: const EdgeInsets.only(left: 8, bottom: 6),
                   child: ActionChip(label: Text(q, style: const TextStyle(fontFamily: kFont)), backgroundColor: Colors.white, side: const BorderSide(color: C.border), onPressed: () => _send(q)),

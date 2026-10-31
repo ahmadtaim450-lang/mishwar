@@ -58,7 +58,7 @@ class TripDetailsScreen extends StatelessWidget {
                 const Divider(height: 24, color: C.line),
                 _info(Icons.directions_car_outlined, t.car),
                 _info(Icons.smoke_free_rounded, 'ممنوع التدخين'),
-                _info(Icons.mosque_outlined, 'وقفة للصلاة عالطريق'),
+                _info(Icons.local_cafe_outlined, 'وقفة استراحة عالطريق'),
                 _info(Icons.luggage_outlined, 'شنتاية وحدة متوسطة'),
                 _info(Icons.event_seat_outlined, 'باقي ${seatsLabel(t.seatsLeft)} من ${t.seatsTotal}'),
                 _info(Icons.straighten_rounded, '${roadKm(t.from, t.to)} كم تقريباً · ${t.duration}'),
@@ -334,7 +334,7 @@ class FamilyBookScreen extends StatefulWidget {
 class _FamilyBookScreenState extends State<FamilyBookScreen> {
   final _sel = {0, 1};
   late final _options = Store.i.female
-      ? const [('أنا', 'صاحبة الحجز'), ('زوجي', 'مَحرَم'), ('أخي', 'مَحرَم'), ('ابني', 'مرافق')]
+      ? const [('أنا', 'صاحبة الحجز'), ('زوجي', 'مرافق'), ('أخي', 'مرافق'), ('ابني', 'مرافق')]
       : const [('أنا', 'صاحب الحجز'), ('زوجتي', 'مرافقة'), ('أمي', 'مرافقة'), ('ابني', 'مرافق')];
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -359,7 +359,7 @@ class _FamilyBookScreenState extends State<FamilyBookScreen> {
               }
             }),
           ),
-          const InfoNote('سفر المرأة مع سائق رجل متاح فقط بوجود مَحرَم من العائلة بنفس الحجز.', warn: true),
+          const InfoNote('سفر المرأة مع سائق رجل متاح فقط بوجود فرد من عائلتها بنفس الحجز.', warn: true),
         ]),
         bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn('تأكيد · ${seatsLabel(_sel.length)}', onTap: _sel.length < 2 ? null : () => go(context, BookMessageScreen(widget.t, seats: _sel.length, family: true))))),
       );
@@ -380,7 +380,7 @@ class BookMessageScreen extends StatelessWidget {
           const TextField(
             maxLines: 5,
             style: TextStyle(fontFamily: kFont, fontSize: 15, height: 1.7),
-            decoration: InputDecoration(hintText: 'السلام عليكم، أنا طالب رايح عالجامعة، معي شنتاية وحدة...'),
+            decoration: InputDecoration(hintText: 'مرحبا، أنا طالب رايح عالجامعة، معي شنتاية وحدة...'),
           ),
         ]),
         bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn(t.instant ? 'أكّد الحجز' : 'إرسال طلب الحجز', icon: Icons.send_rounded, onTap: () {
@@ -421,7 +421,7 @@ class _BookedScreenState extends State<BookedScreen> with SingleTickerProviderSt
                 ),
                 const SizedBox(height: 12),
                 Enter(delay: 300, child: Text(widget.b.status == BStatus.confirmed ? 'انحجزلك!' : 'انبعت طلبك!', style: T.h1)),
-                Enter(delay: 420, child: Text(widget.b.status == BStatus.confirmed ? 'حجزك مؤكّد مع ${widget.b.t.driver.name}. رحلة موفقة إن شاء الله.' : '${widget.b.t.driver.name} رح يرد عليك بأقرب وقت، ورح يوصلك إشعار.', style: T.body, textAlign: TextAlign.center)),
+                Enter(delay: 420, child: Text(widget.b.status == BStatus.confirmed ? 'حجزك مؤكّد مع ${widget.b.t.driver.name}. رحلة موفقة.' : '${widget.b.t.driver.name} رح يرد عليك بأقرب وقت، ورح يوصلك إشعار.', style: T.body, textAlign: TextAlign.center)),
                 const SizedBox(height: 20),
                 Enter(
                   delay: 520,
@@ -492,7 +492,7 @@ class WomenRidesScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         const Text('بكل احترام وأمان', style: T.h1),
-        Text(female ? 'سائقة موثّقة وراكبات بس، أو رحلات عائلية مع مَحرَم.' : 'سائق بيستقبل عائلات بس. سافر مع أهلك براحة، والحجز بيتعلّم عائلي.', style: T.body),
+        Text(female ? 'سائقة موثّقة وراكبات بس، أو رحلات عائلية.' : 'سائق بيستقبل عائلات بس. سافر مع أهلك براحة، والحجز بيتعلّم عائلي.', style: T.body),
         const SizedBox(height: 16),
         for (final t in list) TripCard(t),
       ]),

@@ -8,9 +8,8 @@ import 'shell.dart';
 class PublishStartScreen extends StatelessWidget {
   const PublishStartScreen();
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: const TopBar(),
-        body: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), children: [
+  Widget build(BuildContext context) => SafeArea(
+        child: ListView(padding: const EdgeInsets.all(20), children: [
           const Enter(child: Text('عندك مقاعد فاضية؟', style: T.h1)),
           const Enter(delay: 100, child: Text('انشر رحلتك بدقيقة وقسّم مصروف الطريق.', style: T.body)),
           const SizedBox(height: 16),
@@ -159,7 +158,7 @@ class _PublishFlowState extends State<PublishFlow> {
                     const SizedBox(height: 12),
                     if (_stopList.isNotEmpty)
                       ChoiceCards(multi: true, options: [for (final c in _stopList) (c, '${roadKm(_from, c)} كم من $_from · +10 د')], selected: _stops, onTap: (i) => setState(() => _stops.contains(i) ? _stops.remove(i) : _stops.add(i))),
-                    const InfoNote('رح نقترح عليك وقفة للصلاة والاستراحة إذا الطريق أكتر من ساعتين.', icon: Icons.mosque_outlined),
+                    const InfoNote('رح نقترح عليك وقفة استراحة إذا الطريق أكتر من ساعتين.', icon: Icons.local_cafe_outlined),
                   ])),
                   _page('إيمتى طالع؟', Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     SizedBox(
@@ -231,16 +230,16 @@ class _PublishFlowState extends State<PublishFlow> {
                     const Text('نوع الرحلة', style: T.label),
                     const SizedBox(height: 8),
                     ChoiceCards(
-                      options: _female ? const [('راكبات بس', 'رحلة نسائية'), ('عائلات', 'مع مَحرَم')] : const [('رجال بس', 'ركاب شباب'), ('عائلات', 'عائلات مع مَحرَم')],
+                      options: _female ? const [('راكبات بس', 'رحلة نسائية'), ('عائلات', 'مع أهلن')] : const [('رجال بس', 'ركاب شباب'), ('عائلات', 'عائلات مسافرة سوا')],
                       selected: {_who.contains(1) ? 1 : 0},
                       onTap: (i) => setState(() => _who
                         ..clear()
                         ..add(i)),
                     ),
-                    InfoNote(_female ? 'الرحلة النسائية بتنعرض للراكبات بس.' : 'الراكبات بيحجزوا مع السائقات، أو ضمن عائلة مع مَحرَم.', icon: Icons.shield_outlined),
+                    InfoNote(_female ? 'الرحلة النسائية بتنعرض للراكبات بس.' : 'الراكبات بيحجزوا مع السائقات، أو ضمن عائلتها.', icon: Icons.shield_outlined),
                   ])),
                   _page('تفضيلات الرحلة', Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    ChipGroup(options: const ['ممنوع التدخين', 'وقفة للصلاة', 'مكيّف', 'قرآن بالسيارة', 'شناتي كبيرة', 'بحب الهدوء'], selected: _prefs, onTap: (i) => setState(() => _prefs.contains(i) ? _prefs.remove(i) : _prefs.add(i))),
+                    ChipGroup(options: const ['ممنوع التدخين', 'وقفات استراحة', 'مكيّف', 'أغاني بالسيارة', 'بلا أغاني', 'شناتي كبيرة', 'بحب الهدوء'], selected: _prefs, onTap: (i) => setState(() => _prefs.contains(i) ? _prefs.remove(i) : _prefs.add(i))),
                     const SizedBox(height: 16),
                     const TextField(maxLines: 4, style: TextStyle(fontFamily: kFont, fontSize: 15), decoration: InputDecoration(hintText: 'ملاحظة للركاب (اختياري)')),
                   ])),

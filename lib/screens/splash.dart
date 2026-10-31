@@ -28,7 +28,7 @@ class SplashScreen extends StatelessWidget {
                   child: Column(children: [
                     Btn('يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, const OnboardingScreen())),
                     const SizedBox(height: 10),
-                    const Text('بسم الله · مشوارك بأمان', style: TextStyle(fontFamily: kFont, fontSize: 13, color: C.dark)),
+                    const Text('مشوارك بأمان', style: TextStyle(fontFamily: kFont, fontSize: 13, color: C.dark)),
                   ]),
                 ),
               ),

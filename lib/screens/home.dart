@@ -8,7 +8,6 @@ import '../widgets/dest_map.dart';
 import 'search.dart';
 import 'messages.dart';
 import 'my_trips.dart';
-import 'publish.dart' show PublishStartScreen;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen();
@@ -87,28 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
                 const SizedBox(height: 14),
                 Enter(delay: 220, child: _kindCard()),
-                const SizedBox(height: 10),
-                Enter(
-                  delay: 260,
-                  child: CardBox(
-                    onTap: () => go(context, const PublishStartScreen()),
-                    child: Row(children: [
-                      Container(width: 46, height: 46, decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.add_road_rounded, color: C.primary)),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('طالع بسيارتك؟', style: T.label),
-                          Text('انشر رحلتك وقسّم مصروف الطريق', style: T.small),
-                        ]),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(color: C.primary, borderRadius: BorderRadius.circular(12)),
-                        child: const Text('انشر', style: TextStyle(fontFamily: kFont, color: Colors.white)),
-                      ),
-                    ]),
-                  ),
-                ),
                 const SizedBox(height: 24),
                 DestinationsMap(from: _from, day: _day, onSearch: (city) => _search(_from, city)),
                 if (_s.recent.isNotEmpty) ...[
@@ -134,8 +111,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                 ],
-                const SizedBox(height: 10),
-                const Center(child: Text('﴿ وَقُل رَّبِّ أَنزِلْنِي مُنزَلًا مُّبَارَكًا ﴾', style: TextStyle(fontFamily: kFont, color: C.muted, fontSize: 14))),
               ]),
             ),
           ),
@@ -274,7 +249,7 @@ class _NextTrip extends StatelessWidget {
   }
 }
 
-/// مشهد الرئيسية: سما حسب الوقت، تلال، قبة ومئذنة، وسيارة ماشية عالطريق.
+/// مشهد الرئيسية: سما حسب الوقت، تلال، مدينة، وسيارة ماشية عالطريق.
 class HomeScene extends StatefulWidget {
   const HomeScene({super.key});
   @override
@@ -331,7 +306,7 @@ class _ScenePainter extends CustomPainter {
       }
     }
 
-    // تلال بعيدة مع مدينة: قبة ومئذنة وسرو
+    // تلال بعيدة مع مدينة وسرو
     final far = Paint()..color = Colors.white.withValues(alpha: night ? .08 : .16);
     final hill = Path()..moveTo(0, base - 40);
     for (var x = 0.0; x <= w; x += 8) {
@@ -344,14 +319,13 @@ class _ScenePainter extends CustomPainter {
     canvas.drawPath(hill, far);
     final cx = w * .72, by = base - 54;
     final city = Path()
-      ..addRect(Rect.fromLTWH(cx - 26, by - 14, 52, 20))
-      ..addOval(Rect.fromCircle(center: Offset(cx, by - 14), radius: 15))
-      ..addRect(Rect.fromLTWH(cx + 32, by - 46, 6, 52))
-      ..addOval(Rect.fromCircle(center: Offset(cx + 35, by - 48), radius: 4.5))
-      ..addRect(Rect.fromLTWH(cx - 70, by - 6, 28, 14))
-      ..addRect(Rect.fromLTWH(cx + 46, by - 10, 22, 16));
+      ..addRect(Rect.fromLTWH(cx - 70, by - 6, 26, 14))
+      ..addRect(Rect.fromLTWH(cx - 42, by - 22, 18, 30))
+      ..addRect(Rect.fromLTWH(cx - 22, by - 12, 30, 20))
+      ..addRect(Rect.fromLTWH(cx + 10, by - 34, 14, 42))
+      ..addRect(Rect.fromLTWH(cx + 26, by - 18, 22, 26))
+      ..addRect(Rect.fromLTWH(cx + 50, by - 8, 20, 16));
     canvas.drawPath(city, far);
-    canvas.drawLine(Offset(cx + 35, by - 53), Offset(cx + 35, by - 60), far..strokeWidth = 1.5);
     for (final x in [w * .08, w * .14, w * .48]) {
       canvas.drawOval(Rect.fromCenter(center: Offset(x, base - 52), width: 9, height: 30), far);
     }

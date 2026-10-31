@@ -214,7 +214,7 @@ class Store extends ChangeNotifier {
         if (b.status != BStatus.pending) return;
         b.status = BStatus.confirmed;
         notifyListeners();
-        say('${t.driver.name} قبل حجزك على رحلة ${t.from} ← ${t.to}. رحلة موفقة إن شاء الله');
+        say('${t.driver.name} قبل حجزك على رحلة ${t.from} ← ${t.to}. رحلة موفقة');
       });
     }
     return b;

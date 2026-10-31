@@ -244,12 +244,12 @@ class _SafeModeScreenState extends State<SafeModeScreen> {
         children: [
           ChoiceCards(
             options: widget.female
-                ? const [('رحلات نسائية', 'سائقة وراكبات فقط'), ('رحلات عائلية', 'مع أفراد عائلتي ومَحرَم')]
+                ? const [('رحلات نسائية', 'سائقة وراكبات فقط'), ('رحلات عائلية', 'مع أفراد عائلتي')]
                 : const [('رحلات رجال', 'سائق رجل وركاب رجال'), ('رحلات عائلية', 'مع أفراد عائلتي'), ('الاثنين', 'رجال وعائلات')],
             selected: {_m.clamp(0, widget.female ? 1 : 2)},
             onTap: (i) => setState(() => _m = i),
           ),
-          const InfoNote('الراكبات ما بيظهرلن إلا رحلات السائقات أو الرحلات العائلية مع مَحرَم.', icon: Icons.shield_outlined),
+          const InfoNote('الراكبات ما بيظهرلن إلا رحلات السائقات أو الرحلات العائلية.', icon: Icons.shield_outlined),
         ],
       );
 }
@@ -328,7 +328,7 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(),
               Btn('دوّر على رحلة', kind: BtnKind.white, icon: Icons.search_rounded, onTap: () => goReplace(context, const AppShell())),
               const SizedBox(height: 10),
-              Btn('انشر رحلة', kind: BtnKind.dark, icon: Icons.add_circle_outline_rounded, onTap: () => goReplace(context, const AppShell(openPublish: true))),
+              Btn('انشر رحلة', kind: BtnKind.dark, icon: Icons.add_circle_outline_rounded, onTap: () => goReplace(context, const AppShell(initial: 2))),
             ]),
           ),
         ),
