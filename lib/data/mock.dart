@@ -23,6 +23,7 @@ class Trip {
   final RideKind kind;
   final bool instant;
   final List<String> stops;
+  final int day; // 0 اليوم، 1 بكرا، سالب = بالماضي
   const Trip({
     required this.id,
     required this.from,
@@ -40,6 +41,7 @@ class Trip {
     this.kind = RideKind.men,
     this.instant = false,
     this.stops = const [],
+    this.day = 1,
   });
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme.dart';
 import 'screens/splash.dart';
+import 'data/store.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,7 @@ class MishwarApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'مشوار',
+        scaffoldMessengerKey: Store.i.messenger,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         locale: const Locale('ar'),

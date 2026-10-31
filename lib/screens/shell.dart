@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../data/store.dart';
 import '../core/theme.dart';
 import '../widgets/common.dart';
 import 'home.dart';
@@ -34,33 +36,59 @@ class _AppShellState extends State<AppShell> {
         transitionBuilder: (c, a) => FadeTransition(opacity: a, child: SlideTransition(position: Tween(begin: const Offset(0, .02), end: Offset.zero).animate(a), child: c)),
         child: KeyedSubtree(key: ValueKey(_i), child: pages[_i]),
       ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: C.line, width: 1.5))),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 68,
-            child: Row(children: [
-              for (var k = 0; k < _items.length; k++)
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _i = k),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                        decoration: BoxDecoration(color: k == _i ? C.tint : Colors.transparent, borderRadius: BorderRadius.circular(14)),
-                        child: Stack(clipBehavior: Clip.none, children: [
-                          Icon(_items[k].$1, color: k == _i ? C.primary : C.muted, size: 24),
-                          if (k == 3 && _i != 3) Positioned(top: -1, left: -2, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFFF0533A), shape: BoxShape.circle))),
-                        ]),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(_items[k].$2, style: TextStyle(fontFamily: kFont, fontSize: 11.5, color: k == _i ? C.primary : C.muted)),
-                    ]),
+      bottomNavigationBar: ListenableBuilder(
+        listenable: Store.i,
+        builder: (context, _) => Container(
+          decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .06), blurRadius: 20, offset: const Offset(0, -4))]),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 70,
+              child: Row(children: [
+                for (var k = 0; k < _items.length; k++)
+                  Expanded(
+                    child: k == 1
+                        ? Press(
+                            onTap: () => setState(() => _i = k),
+                            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: _i == 1 ? C.dark : C.primary,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [BoxShadow(color: C.primary.withValues(alpha: .35), blurRadius: 14, offset: const Offset(0, 6))],
+                                ),
+                                child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(_items[k].$2, style: TextStyle(fontFamily: kFont, fontSize: 11, color: _i == 1 ? C.dark : C.muted)),
+                            ]),
+                          )
+                        : InkWell(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _i = k);
+                            },
+                            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                                decoration: BoxDecoration(color: k == _i ? C.tint : Colors.transparent, borderRadius: BorderRadius.circular(14)),
+                                child: Stack(clipBehavior: Clip.none, children: [
+                                  Icon(_items[k].$1, color: k == _i ? C.primary : C.muted, size: 24),
+                                  if ((k == 3 && _i != 3) || (k == 2 && _i != 2 && Store.i.driverPending > 0))
+                                    Positioned(top: -1, left: -2, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFFF0533A), shape: BoxShape.circle))),
+                                ]),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(_items[k].$2, style: TextStyle(fontFamily: kFont, fontSize: 11.5, color: k == _i ? C.primary : C.muted)),
+                            ]),
+                          ),
                   ),
-                ),
-            ]),
+              ]),
+            ),
           ),
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
 
@@ -104,7 +105,12 @@ class _PressState extends State<Press> {
         onTapDown: (_) => setState(() => _down = true),
         onTapCancel: () => setState(() => _down = false),
         onTapUp: (_) => setState(() => _down = false),
-        onTap: widget.onTap,
+        onTap: widget.onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                widget.onTap!();
+              },
         child: AnimatedScale(scale: _down ? .96 : 1, duration: const Duration(milliseconds: 120), child: widget.child),
       );
 }
@@ -127,7 +133,9 @@ class Btn extends StatelessWidget {
       BtnKind.white => (Colors.white, C.primary, null),
       BtnKind.dark => (C.dark, Colors.white, null),
     };
-    return Press(
+    return Opacity(
+     opacity: onTap == null ? .55 : 1,
+     child: Press(
       onTap: onTap,
       child: Container(
         height: 56,
@@ -140,9 +148,10 @@ class Btn extends StatelessWidget {
         alignment: Alignment.center,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[Icon(icon, color: fg, size: 20), const SizedBox(width: 8)],
-          Text(label, style: TextStyle(color: fg, fontSize: 17, fontFamily: kFont)),
+          Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg, fontSize: 17, fontFamily: kFont))),
         ]),
       ),
+     ),
     );
   }
 }
@@ -485,11 +494,11 @@ class Group extends StatelessWidget {
 class EmptyState extends StatelessWidget {
   final String image, title, body;
   final List<Widget> actions;
-  const EmptyState({required this.image, required this.title, required this.body, this.actions = const []});
+  const EmptyState({super.key, required this.image, required this.title, required this.body, this.actions = const []});
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
           Floaty(child: Illus(image, width: 220, height: 220)),
           const SizedBox(height: 12),
           Enter(child: Text(title, style: T.h1, textAlign: TextAlign.center)),

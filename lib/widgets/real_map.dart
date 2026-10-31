@@ -85,7 +85,8 @@ class TripMap extends StatefulWidget {
   final double? carProgress; // null = بلا سيارة
   final bool interactive;
   final ValueChanged<List<LatLng>>? onRoute;
-  const TripMap({required this.cities, this.carProgress, this.interactive = true, this.onRoute});
+  final LatLng? me; // موقع GPS الحقيقي
+  const TripMap({required this.cities, this.carProgress, this.interactive = true, this.onRoute, this.me});
   @override
   State<TripMap> createState() => _TripMapState();
 }
@@ -148,6 +149,17 @@ class _TripMapState extends State<TripMap> {
                 alignment: Alignment.topCenter,
                 child: _CityPin(widget.cities[i], last: i == widget.cities.length - 1, first: i == 0),
               ),
+          if (widget.me != null)
+            Marker(
+              point: widget.me!,
+              width: 30,
+              height: 30,
+              child: Container(
+                decoration: BoxDecoration(color: C.primary.withValues(alpha: .25), shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Container(width: 16, height: 16, decoration: BoxDecoration(color: C.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3))),
+              ),
+            ),
           if (car != null)
             Marker(
               point: car.$1,

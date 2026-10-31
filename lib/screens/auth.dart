@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
+import '../data/store.dart';
 import '../widgets/common.dart';
 import 'shell.dart';
 import 'splash.dart';
@@ -211,7 +212,10 @@ class _SignupGenderScreenState extends State<SignupGenderScreen> {
   Widget build(BuildContext context) => _SignupFrame(
         step: 2,
         title: 'عرّفنا عليك أكتر',
-        onNext: () => go(context, SafeModeScreen(female: _g == 1)),
+        onNext: () {
+          Store.i.setFemale(_g == 1);
+          go(context, SafeModeScreen(female: _g == 1));
+        },
         children: [
           const Text('الجنس', style: T.label),
           const SizedBox(height: 8),

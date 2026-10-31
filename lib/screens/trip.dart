@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
+import '../data/store.dart';
 import '../widgets/common.dart';
 import 'search.dart' show TripCard;
 import 'splash.dart';
@@ -9,13 +10,20 @@ import '../widgets/real_map.dart';
 import 'messages.dart';
 import 'profile.dart';
 import 'shell.dart';
+import 'my_trips.dart' show TicketScreen;
 
 class TripDetailsScreen extends StatelessWidget {
   final Trip t;
-  const TripDetailsScreen(this.t);
+  final int pax;
+  const TripDetailsScreen(this.t, {this.pax = 1});
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: TopBar(title: '${t.from} ← ${t.to}', actions: [SquareBtn(Icons.ios_share_rounded, tooltip: 'مشاركة', onTap: () => toast(context, 'تم نسخ رابط الرحلة'))]),
+  Widget build(BuildContext context) {
+    final female = Store.i.female;
+    final blocked = (t.kind == RideKind.women && !female) ? 'هالرحلة للراكبات بس' : (t.kind == RideKind.men && female) ? 'هالرحلة للرجال، احجزي برحلة نسائية أو عائلية' : null;
+    final mine = Store.i.bookingOf(t);
+    final full = t.seatsLeft == 0;
+    return Scaffold(
+        appBar: TopBar(title: '${t.from} ← ${t.to}', sub: '${dayLabel(t.day)} · ${t.duration}', actions: [SquareBtn(Icons.ios_share_rounded, tooltip: 'مشاركة', onTap: () => toast(context, 'تم نسخ رابط الرحلة'))]),
         body: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
           Enter(child: CardBox(child: Timeline(a: t.from, b: t.to, ta: t.dep, tb: t.arr, sa: t.fromSpot, sb: t.toSpot))),
           const SizedBox(height: 12),
@@ -23,7 +31,7 @@ class TripDetailsScreen extends StatelessWidget {
             delay: 80,
             child: CardBox(
               child: Row(children: [
-                const Expanded(child: Text('السعر لراكب واحد', style: T.body)),
+                const Expanded(child: Text('سعر المقعد', style: T.body)),
                 Text(money(t.price), style: const TextStyle(fontFamily: kFont, fontSize: 22, color: C.primary)),
               ]),
             ),
@@ -52,7 +60,8 @@ class TripDetailsScreen extends StatelessWidget {
                 _info(Icons.smoke_free_rounded, 'ممنوع التدخين'),
                 _info(Icons.mosque_outlined, 'وقفة للصلاة عالطريق'),
                 _info(Icons.luggage_outlined, 'شنتاية وحدة متوسطة'),
-                _info(Icons.event_seat_outlined, '${t.seatsLeft} مقاعد فاضية من ${t.seatsTotal}'),
+                _info(Icons.event_seat_outlined, 'باقي ${seatsLabel(t.seatsLeft)} من ${t.seatsTotal}'),
+                _info(Icons.straighten_rounded, '${roadKm(t.from, t.to)} كم تقريباً · ${t.duration}'),
                 Align(alignment: AlignmentDirectional.centerStart, child: KindBadge(t.kind)),
               ]),
             ),
@@ -71,7 +80,7 @@ class TripDetailsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const InfoNote('الدفع كاش للسائق. رقم السائق بيظهر بعد ما يقبل الحجز.'),
+          const InfoNote('الدفع كاش للسائق بإيدو. رقم السائق بيظهر بعد ما يقبل الحجز.'),
         ]),
         bottomNavigationBar: SafeArea(
           child: Container(
@@ -80,11 +89,21 @@ class TripDetailsScreen extends StatelessWidget {
             child: Row(children: [
               SquareBtn(Icons.chat_bubble_outline_rounded, tooltip: 'مراسلة', onTap: () => go(context, ChatScreen(t.driver))),
               const SizedBox(width: 10),
-              Expanded(child: Btn(t.instant ? 'احجز فوراً' : 'اطلب مقعد', onTap: () => go(context, BookReviewScreen(t)))),
+              Expanded(
+                child: mine != null
+                    ? Btn('شوف حجزك', kind: BtnKind.dark, icon: Icons.confirmation_number_outlined, onTap: () => go(context, _ticket(mine)))
+                    : blocked != null
+                        ? Btn(blocked, kind: BtnKind.outline)
+                        : full
+                            ? const Btn('الرحلة مكتملة', kind: BtnKind.outline)
+                            : Btn(t.instant ? 'احجز فوراً' : 'اطلب مقعد', onTap: () => go(context, BookReviewScreen(t, pax: pax)))),
             ]),
           ),
         ),
       );
+  }
+
+  Widget _ticket(Booking b) => TicketScreen(b);
 
   Widget _info(IconData i, String s) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -244,18 +263,19 @@ class ReviewsScreen extends StatelessWidget {
 
 class BookReviewScreen extends StatefulWidget {
   final Trip t;
-  const BookReviewScreen(this.t);
+  final int pax;
+  const BookReviewScreen(this.t, {this.pax = 1});
   @override
   State<BookReviewScreen> createState() => _BookReviewScreenState();
 }
 
 class _BookReviewScreenState extends State<BookReviewScreen> {
-  int _seats = 1;
+  late int _seats = widget.pax.clamp(1, widget.t.seatsLeft);
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
     return Scaffold(
-      appBar: const TopBar(title: 'تأكيد الحجز'),
+      appBar: TopBar(title: 'تأكيد الحجز', sub: '${dayLabel(t.day)} · ${t.dep}'),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
         CardBox(
           child: Column(children: [
@@ -267,7 +287,7 @@ class _BookReviewScreenState extends State<BookReviewScreen> {
         const SizedBox(height: 12),
         CardBox(
           child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('عدد المقاعد', style: T.label), Text('باقي ${t.seatsLeft}', style: T.small)])),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('عدد المقاعد', style: T.label), Text('باقي ${seatsLabel(t.seatsLeft)}', style: T.small)])),
             Counter(value: _seats, max: t.seatsLeft, onChanged: (v) => setState(() => _seats = v)),
           ]),
         ),
@@ -275,7 +295,7 @@ class _BookReviewScreenState extends State<BookReviewScreen> {
         CardBox(
           child: Column(children: [
             _line('سعر المقعد', money(t.price)),
-            _line('رسوم الخدمة', 'مجاناً', color: C.primary),
+            _line('عدد المقاعد', '× $_seats'),
             const Divider(height: 20, color: C.line),
             _line('المجموع (كاش للسائق)', money(t.price * _seats), bold: true),
           ]),
@@ -287,9 +307,11 @@ class _BookReviewScreenState extends State<BookReviewScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Btn('متابعة', onTap: () => go(context, BookMessageScreen(t))),
-            const SizedBox(height: 8),
-            Btn('مسافر مع عائلتي', kind: BtnKind.outline, icon: Icons.family_restroom_rounded, onTap: () => go(context, FamilyBookScreen(t))),
+            Btn('متابعة', onTap: () => go(context, BookMessageScreen(t, seats: _seats))),
+            if (t.kind != RideKind.women && t.seatsLeft >= 2) ...[
+              const SizedBox(height: 8),
+              Btn('مسافر مع عائلتي', kind: BtnKind.outline, icon: Icons.family_restroom_rounded, onTap: () => go(context, FamilyBookScreen(t))),
+            ],
           ]),
         ),
       ),
@@ -310,7 +332,10 @@ class FamilyBookScreen extends StatefulWidget {
 }
 
 class _FamilyBookScreenState extends State<FamilyBookScreen> {
-  final _sel = {0, 1, 2};
+  final _sel = {0, 1};
+  late final _options = Store.i.female
+      ? const [('أنا', 'صاحبة الحجز'), ('زوجي', 'مَحرَم'), ('أخي', 'مَحرَم'), ('ابني', 'مرافق')]
+      : const [('أنا', 'صاحب الحجز'), ('زوجتي', 'مرافقة'), ('أمي', 'مرافقة'), ('ابني', 'مرافق')];
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: const TopBar(title: 'مين مسافر معك؟'),
@@ -321,19 +346,30 @@ class _FamilyBookScreenState extends State<FamilyBookScreen> {
           const SizedBox(height: 14),
           ChoiceCards(
             multi: true,
-            options: const [('أنا', 'إيهاب · صاحب الحجز'), ('زوجتي', 'مرافقة'), ('ابني أحمد', '8 سنين'), ('أمي', 'مرافقة')],
+            options: _options,
             selected: _sel,
-            onTap: (i) => setState(() => _sel.contains(i) ? _sel.remove(i) : _sel.add(i)),
+            onTap: (i) => setState(() {
+              if (i == 0) return; // صاحب الحجز دايماً مسافر
+              if (_sel.contains(i)) {
+                _sel.remove(i);
+              } else if (_sel.length < widget.t.seatsLeft) {
+                _sel.add(i);
+              } else {
+                toast(context, 'باقي ${seatsLabel(widget.t.seatsLeft)} بس بهالرحلة');
+              }
+            }),
           ),
           const InfoNote('سفر المرأة مع سائق رجل متاح فقط بوجود مَحرَم من العائلة بنفس الحجز.', warn: true),
         ]),
-        bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn('تأكيد · ${_sel.length} مقاعد', onTap: () => go(context, BookMessageScreen(widget.t))))),
+        bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn('تأكيد · ${seatsLabel(_sel.length)}', onTap: _sel.length < 2 ? null : () => go(context, BookMessageScreen(widget.t, seats: _sel.length, family: true))))),
       );
 }
 
 class BookMessageScreen extends StatelessWidget {
   final Trip t;
-  const BookMessageScreen(this.t);
+  final int seats;
+  final bool family;
+  const BookMessageScreen(this.t, {this.seats = 1, this.family = false});
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: const TopBar(),
@@ -347,13 +383,16 @@ class BookMessageScreen extends StatelessWidget {
             decoration: InputDecoration(hintText: 'السلام عليكم، أنا طالب رايح عالجامعة، معي شنتاية وحدة...'),
           ),
         ]),
-        bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn('إرسال طلب الحجز', icon: Icons.send_rounded, onTap: () => go(context, BookedScreen(t))))),
+        bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn(t.instant ? 'أكّد الحجز' : 'إرسال طلب الحجز', icon: Icons.send_rounded, onTap: () {
+          final b = Store.i.book(t, seats, family: family);
+          goReplace(context, BookedScreen(b));
+        }))),
       );
 }
 
 class BookedScreen extends StatefulWidget {
-  final Trip t;
-  const BookedScreen(this.t);
+  final Booking b;
+  const BookedScreen(this.b);
   @override
   State<BookedScreen> createState() => _BookedScreenState();
 }
@@ -381,17 +420,18 @@ class _BookedScreenState extends State<BookedScreen> with SingleTickerProviderSt
                   child: const Illus('booked', height: 230, fallback: Icons.check_circle_rounded),
                 ),
                 const SizedBox(height: 12),
-                const Enter(delay: 300, child: Text('انبعت طلبك!', style: T.h1)),
-                Enter(delay: 420, child: Text('${widget.t.driver.name} رح يرد عليك بأقرب وقت، ورح يوصلك إشعار.', style: T.body, textAlign: TextAlign.center)),
+                Enter(delay: 300, child: Text(widget.b.status == BStatus.confirmed ? 'انحجزلك!' : 'انبعت طلبك!', style: T.h1)),
+                Enter(delay: 420, child: Text(widget.b.status == BStatus.confirmed ? 'حجزك مؤكّد مع ${widget.b.t.driver.name}. رحلة موفقة إن شاء الله.' : '${widget.b.t.driver.name} رح يرد عليك بأقرب وقت، ورح يوصلك إشعار.', style: T.body, textAlign: TextAlign.center)),
                 const SizedBox(height: 20),
                 Enter(
                   delay: 520,
                   child: CardBox(
                     color: C.bg,
                     child: Column(children: [
-                      _r('الرحلة', '${widget.t.from} ← ${widget.t.to}'),
-                      _r('الموعد', widget.t.dep),
-                      _r('المبلغ (كاش)', money(widget.t.price)),
+                      _r('الرحلة', '${widget.b.t.from} ← ${widget.b.t.to}'),
+                      _r('الموعد', '${dayLabel(widget.b.t.day)} · ${widget.b.t.dep}'),
+                      _r('المقاعد', seatsLabel(widget.b.seats) + (widget.b.family ? ' · عائلي' : '')),
+                      _r('المبلغ (كاش)', money(widget.b.total)),
                     ]),
                   ),
                 ),
@@ -437,17 +477,22 @@ class WomenRidesScreen extends StatelessWidget {
   const WomenRidesScreen();
   @override
   Widget build(BuildContext context) {
-    final list = trips.where((t) => t.kind != RideKind.men).toList();
+    final female = Store.i.female;
+    final want = female ? RideKind.women : RideKind.family;
+    final list = [
+      for (final (a, b) in const [('اللاذقية', 'دمشق'), ('اللاذقية', 'حمص'), ('طرطوس', 'دمشق'), ('حمص', 'حلب'), ('دمشق', 'حلب'), ('اللاذقية', 'حلب')])
+        ...tripsFor(a, b, day: 1).where((t) => t.kind == want || (female && t.kind == RideKind.family)),
+    ];
     return Scaffold(
-      appBar: const TopBar(title: 'رحلات نسائية وعائلية'),
+      appBar: TopBar(title: female ? 'رحلات نسائية' : 'سفر عائلي', sub: 'رحلات بكرا'),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
         Container(
           height: 220,
-          child: const Floaty(child: Illus('women_only', fit: BoxFit.contain)),
+          child: Floaty(child: Illus(female ? 'women_only' : 'family', fit: BoxFit.contain)),
         ),
         const SizedBox(height: 16),
         const Text('بكل احترام وأمان', style: T.h1),
-        const Text('الرحلات النسائية: سائقة موثّقة وراكبات فقط. الرحلات العائلية: عائلات مع مَحرَم.', style: T.body),
+        Text(female ? 'سائقة موثّقة وراكبات بس، أو رحلات عائلية مع مَحرَم.' : 'سائق بيستقبل عائلات بس. سافر مع أهلك براحة، والحجز بيتعلّم عائلي.', style: T.body),
         const SizedBox(height: 16),
         for (final t in list) TripCard(t),
       ]),

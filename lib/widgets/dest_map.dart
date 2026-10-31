@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../data/syria_map.dart';
+import '../data/store.dart';
 import 'common.dart';
 
 class DestStat {
@@ -12,14 +13,18 @@ class DestStat {
   const DestStat(this.id, this.city, this.trips, this.fromPrice, [this.tag]);
 }
 
-const destStats = <DestStat>[
-  DestStat('damascus', 'دمشق', 12, 70000, 'الأكتر طلب'),
-  DestStat('aleppo', 'حلب', 8, 85000),
-  DestStat('homs', 'حمص', 15, 45000, 'الأرخص'),
-  DestStat('tartus', 'طرطوس', 9, 25000),
-  DestStat('hama', 'حماة', 6, 55000),
-  DestStat('daraa', 'درعا', 3, 95000),
-];
+/// إحصائيات الوجهات محسوبة من نفس رحلات البحث، فالأرقام بتطابق النتائج.
+List<DestStat> destStatsFor(String from, int day) {
+  final list = <DestStat>[
+    for (final e in _cityIds.entries)
+      if (e.key != from)
+        DestStat(e.value, e.key, tripsFor(from, e.key, day: day).length, suggestedPrice(from, e.key)),
+  ];
+  if (list.isEmpty) return list;
+  final most = list.reduce((a, b) => a.trips >= b.trips ? a : b);
+  final cheap = list.reduce((a, b) => a.fromPrice <= b.fromPrice ? a : b);
+  return [for (final d in list) DestStat(d.id, d.city, d.trips, d.fromPrice, d == most ? 'الأكتر رحلات' : d == cheap ? 'الأقرب' : null)];
+}
 
 const _cityIds = {'اللاذقية': 'latakia', 'جبلة': 'jableh', 'طرطوس': 'tartus', 'حمص': 'homs', 'حماة': 'hama', 'حلب': 'aleppo', 'دمشق': 'damascus', 'درعا': 'daraa'};
 Offset _pos(String id) => mapCities.firstWhere((c) => c.id == id).pos;
@@ -27,8 +32,9 @@ Offset _pos(String id) => mapCities.firstWhere((c) => c.id == id).pos;
 /// خريطة سوريا مرسومة بالكود: فقاعات الرحلات، زوم بالإصبعين، وضغطة على مدينة بتقرّب عليها.
 class DestinationsMap extends StatefulWidget {
   final String from;
+  final int day;
   final ValueChanged<String> onSearch;
-  const DestinationsMap({required this.from, required this.onSearch});
+  const DestinationsMap({required this.from, this.day = 1, required this.onSearch});
   @override
   State<DestinationsMap> createState() => _DestinationsMapState();
 }
@@ -94,9 +100,14 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     final fromId = _cityIds[widget.from];
+    final destStats = destStatsFor(widget.from, widget.day);
+    if (_sel != null) {
+      final m = destStats.where((d) => d.id == _sel!.id);
+      _sel = m.isEmpty ? null : m.first;
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        const Expanded(child: Text('رحلات اليوم على الخريطة', style: T.h3)),
+        const Expanded(child: Text('رحلات ${dayLabel(widget.day)} من ${widget.from}', style: T.h3)),
         if (_sel != null)
           TextButton.icon(onPressed: _reset, icon: const Icon(Icons.zoom_out_map_rounded, size: 18), label: const Text('كل المدن', style: TextStyle(fontFamily: kFont)))
         else
@@ -126,7 +137,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
                     Positioned.fill(child: CustomPaint(painter: _SyriaPainter(origin: o, k: _k))),
                     if (fromId != null) _here(o + _pos(fromId) * _k),
                     for (final d in destStats)
-                      if (d.id != fromId) _bubble(d, o + _pos(d.id) * _k),
+                      if (d.id != fromId && d.id != 'jableh' && !(d.id == 'latakia' && fromId == 'jableh')) _bubble(d, o + _pos(d.id) * _k),
                   ]),
                 ),
               ),
@@ -157,7 +168,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
                         Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: ActionChip(
-                            label: Text('${d.city} · ${d.trips}', style: const TextStyle(fontFamily: kFont, color: C.dark)),
+                            label: Text('${d.city} · ${tripsLabel(d.trips)}', style: const TextStyle(fontFamily: kFont, color: C.dark)),
                             backgroundColor: Colors.white,
                             side: const BorderSide(color: C.border),
                             onPressed: () => _select(d),
@@ -178,7 +189,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
                             Text('${widget.from} ← ${_sel!.city}', style: T.h3),
                             if (_sel!.tag != null) Badge2(_sel!.tag!, bg: C.warnBg, fg: C.warn),
                           ]),
-                          Text('${_sel!.trips} رحلة اليوم · من ${money(_sel!.fromPrice)}', style: T.small),
+                          Text('${tripsLabel(_sel!.trips)} · ${roadKm(widget.from, _sel!.city)} كم · من ${money(_sel!.fromPrice)}', style: T.small),
                         ]),
                       ),
                       SizedBox(width: 110, child: Btn('اعرض', onTap: () => widget.onSearch(_sel!.city))),
@@ -191,8 +202,8 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
   }
 
   Widget _bubble(DestStat d, Offset p) {
-    final s = (12 + d.trips * .9) * _k;
-    final sel = _sel == d;
+    final s = (11 + d.trips * 1.8) * _k;
+    final sel = _sel?.id == d.id;
     final ring = s * (1 + _pulse.value * .8);
     return Positioned(
       left: p.dx - 60,

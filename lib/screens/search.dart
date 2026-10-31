@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
+import '../data/store.dart';
+import '../data/location.dart';
 import '../widgets/common.dart';
 import 'trip.dart';
 
@@ -8,16 +10,32 @@ export 'trip.dart' show WomenRidesScreen;
 
 class PlacesScreen extends StatefulWidget {
   final String title;
-  const PlacesScreen({this.title = 'لوين رايح؟'});
+  final String? exclude;
+  const PlacesScreen({this.title = 'لوين رايح؟', this.exclude});
   @override
   State<PlacesScreen> createState() => _PlacesScreenState();
 }
 
 class _PlacesScreenState extends State<PlacesScreen> {
   String _q = '';
+  bool _locating = false;
+
+  Future<void> _useLocation() async {
+    setState(() => _locating = true);
+    final p = await myPosition();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (p == null) {
+      toast(context, 'ما قدرنا نحدد موقعك، تأكد إنو الموقع مشغّل');
+      return;
+    }
+    final names = cities.map((c) => c.name).where((n) => n != widget.exclude);
+    Navigator.pop(context, nearestCity(p.latitude, p.longitude, names));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final list = cities.where((c) => _q.isEmpty || c.name.contains(_q) || c.sub.contains(_q)).toList();
+    final list = cities.where((c) => c.name != widget.exclude && (_q.isEmpty || c.name.contains(_q) || c.sub.contains(_q))).toList();
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: TopBar(title: widget.title, close: true),
@@ -29,7 +47,7 @@ class _PlacesScreenState extends State<PlacesScreen> {
           decoration: const InputDecoration(hintText: 'مدينة، حي، أو كراج', prefixIcon: Icon(Icons.search_rounded, color: C.primary)),
         ),
         const SizedBox(height: 8),
-        RowItem(Icons.my_location_rounded, 'استخدم موقعي الحالي', onTap: () => Navigator.pop(context, 'اللاذقية')),
+        RowItem(Icons.my_location_rounded, _locating ? 'عم نحدد موقعك...' : 'استخدم موقعي الحالي', onTap: _locating ? null : _useLocation),
         Padding(padding: const EdgeInsets.only(top: 12, bottom: 4), child: Text(_q.isEmpty ? 'مدن شائعة' : 'نتائج', style: T.small)),
         for (var i = 0; i < list.length; i++)
           Enter(
@@ -78,9 +96,9 @@ class _PassengersScreenState extends State<PassengersScreen> {
 }
 
 class ResultsScreen extends StatefulWidget {
-  final String from, to, date;
-  final int pax;
-  const ResultsScreen({required this.from, required this.to, required this.date, required this.pax});
+  final String from, to;
+  final int day, pax;
+  const ResultsScreen({required this.from, required this.to, this.day = 1, this.pax = 1});
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
 }
@@ -88,7 +106,9 @@ class ResultsScreen extends StatefulWidget {
 class _ResultsScreenState extends State<ResultsScreen> {
   int _sort = 0;
   bool _loading = true;
-  Set<RideKind> _kinds = {RideKind.men, RideKind.family};
+  late final bool _female = Store.i.female;
+  late final List<RideKind> _allowed = _female ? const [RideKind.women, RideKind.family] : const [RideKind.men, RideKind.family];
+  late Set<RideKind> _kinds = {..._allowed};
   bool _instantOnly = false;
 
   @override
@@ -101,12 +121,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    var list = trips.where((t) => t.to == widget.to && _kinds.contains(t.kind) && (!_instantOnly || t.instant)).toList();
-    if (_sort == 1) list.sort((a, b) => a.price.compareTo(b.price));
+    final all = tripsFor(widget.from, widget.to, day: widget.day).where((t) => _allowed.contains(t.kind)).toList();
+    final list = all.where((t) => _kinds.contains(t.kind) && (!_instantOnly || t.instant)).toList();
+    list.sort((a, b) => _sort == 1 ? a.price.compareTo(b.price) : a.dep.compareTo(b.dep));
+    final hidden = all.length - list.length;
     return Scaffold(
       appBar: TopBar(
         title: '${widget.from} ← ${widget.to}',
-        sub: '${widget.date} · ${widget.pax == 1 ? 'راكب واحد' : '${widget.pax} ركاب'}',
+        sub: '${dayLabel(widget.day)} · ${paxLabel(widget.pax)} · ${roadKm(widget.from, widget.to)} كم',
         actions: [SquareBtn(Icons.tune_rounded, solid: true, tooltip: 'فلترة', onTap: _openFilters)],
       ),
       body: _loading
@@ -114,8 +136,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
           : list.isEmpty
               ? EmptyState(
                   image: 'empty_search',
-                  title: 'ما في رحلات لهاد اليوم',
-                  body: 'فعّل تنبيه ورح نبعتلك إشعار أول ما حدا ينشر رحلة على هالطريق.',
+                  title: hidden > 0 ? 'الفلتر مخبّي $hidden' : 'ما في رحلات لهاد اليوم',
+                  body: hidden > 0 ? 'في رحلات بس ما بتطابق الفلتر. خفّف الفلترة لتشوفها.' : 'فعّل تنبيه ورح نبعتلك إشعار أول ما حدا ينشر رحلة على هالطريق.',
                   actions: [
                     Btn('فعّل تنبيه', icon: Icons.notifications_active_outlined, onTap: () => go(context, const AlertCreatedScreen())),
                   ],
@@ -139,9 +161,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ]),
                   ),
                   const SizedBox(height: 8),
-                  Text('${list.length} رحلات متاحة', style: T.small),
+                  Text('${tripsLabel(list.length)} ${dayLabel(widget.day)} · السعر المقترح ${money(suggestedPrice(widget.from, widget.to))}', style: T.small),
                   const SizedBox(height: 8),
-                  for (var i = 0; i < list.length; i++) Enter(delay: i * 80, child: TripCard(list[i])),
+                  for (var i = 0; i < list.length; i++) Enter(delay: i * 80, child: TripCard(list[i], pax: widget.pax)),
+                  const SizedBox(height: 6),
+                  CardBox(
+                    color: C.tint,
+                    onTap: () => go(context, const AlertCreatedScreen()),
+                    child: const Row(children: [
+                      Icon(Icons.notifications_active_outlined, color: C.primary),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('ما لقيت الوقت المناسب؟ فعّل تنبيه لهالطريق', style: T.label)),
+                    ]),
+                  ),
                 ]),
     );
   }
@@ -171,10 +203,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
             const Text('نوع الرحلة', style: T.label),
             const SizedBox(height: 8),
             ChipGroup(
-              options: const ['رجال', 'نسائية', 'عائلية'],
-              selected: {for (final k in _kinds) k.index},
+              options: [for (final k in _allowed) kindLabel(k)],
+              selected: {for (var i = 0; i < _allowed.length; i++) if (_kinds.contains(_allowed[i])) i},
               onTap: (i) => upd(() {
-                final k = RideKind.values[i];
+                final k = _allowed[i];
                 _kinds = _kinds.contains(k) ? ({..._kinds}..remove(k)) : {..._kinds, k};
               }),
             ),
@@ -232,12 +264,18 @@ class _SkeletonState extends State<_Skeleton> with SingleTickerProviderStateMixi
 
 class TripCard extends StatelessWidget {
   final Trip t;
-  const TripCard(this.t);
+  final int pax;
+  const TripCard(this.t, {this.pax = 1});
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) {
+    final full = t.seatsLeft < pax;
+    final mine = Store.i.bookingOf(t) != null;
+    return Opacity(
+      opacity: full ? .55 : 1,
+      child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: CardBox(
-          onTap: () => go(context, TripDetailsScreen(t)),
+          onTap: () => go(context, TripDetailsScreen(t, pax: pax)),
           child: Column(children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(child: Timeline(a: t.from, b: t.to, ta: t.dep, tb: t.arr, sa: t.fromSpot, sb: t.toSpot)),
@@ -260,11 +298,25 @@ class TripCard extends StatelessWidget {
               ),
               KindBadge(t.kind),
               const SizedBox(width: 6),
-              Badge2('${t.seatsLeft} مقاعد'),
+              if (mine)
+                const Badge2('حجزت فيها', bg: C.dark, fg: Colors.white)
+              else
+                Badge2(full ? 'باقي ${seatsLabel(t.seatsLeft)} بس' : 'باقي ${seatsLabel(t.seatsLeft)}', bg: t.seatsLeft == 1 ? C.warnBg : C.tint, fg: t.seatsLeft == 1 ? C.warn : C.dark),
             ]),
+            if (t.stops.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(children: [
+                  const Icon(Icons.alt_route_rounded, size: 16, color: C.muted),
+                  const SizedBox(width: 6),
+                  Text('عبر ${t.stops.join('، ')} · ${t.duration}', style: T.small),
+                ]),
+              ),
           ]),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class AlertCreatedScreen extends StatelessWidget {
