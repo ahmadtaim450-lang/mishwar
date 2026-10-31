@@ -6,21 +6,22 @@ import '../data/syria_map.dart';
 import '../data/world_land.dart';
 import '../widgets/common.dart';
 import 'onboarding.dart';
+import '../widgets/syria_hero.dart';
 
-/// شاشة البداية: كوكب صغير بيدور وعليه معالم سوريا، والسيارة ماشية فوقه.
+/// شاشة البداية: خريطة سوريا ثلاثية الأبعاد ومدنها موصولة ببعض.
 class SplashScreen extends StatelessWidget {
   const SplashScreen();
   @override
   Widget build(BuildContext context) => Scaffold(
         body: Container(
-          decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [C.primary, Color(0xFF5FCBF8), Color(0xFFBFE6F7)])),
+          decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF064854), Color(0xFF0A8FD0), C.primary])),
           child: SafeArea(
             child: Column(children: [
               const SizedBox(height: 36),
               const Enter(child: Text('مشوار', style: TextStyle(fontFamily: kFont, fontSize: 80, height: 1, color: Colors.white))),
               const SizedBox(height: 6),
               const Enter(delay: 150, child: Text('رفيقك بالطريق بين المدن', style: TextStyle(fontFamily: kFont, fontSize: 18, color: Colors.white))),
-              const Expanded(child: TinyPlanet()),
+              const Expanded(child: SyriaHero()),
               Enter(
                 delay: 900,
                 child: Padding(
@@ -28,7 +29,7 @@ class SplashScreen extends StatelessWidget {
                   child: Column(children: [
                     Btn('يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, const OnboardingScreen())),
                     const SizedBox(height: 10),
-                    const Text('مشوارك بأمان', style: TextStyle(fontFamily: kFont, fontSize: 13, color: C.dark)),
+                    const Text('مشوارك بأمان', style: TextStyle(fontFamily: kFont, fontSize: 13, color: Colors.white70)),
                   ]),
                 ),
               ),
