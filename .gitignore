@@ -1,0 +1,17 @@
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+*.iml
+.DS_Store
+/android/
+/ios/
+/linux/
+/macos/
+/windows/
+/web/
+assets/fonts/*.ttf
+assets/images/*.png
+assets/videos/

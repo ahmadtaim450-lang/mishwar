@@ -1,0 +1,67 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Android platform files
+        run: flutter create --platforms=android --org com.mishwar --project-name mishwar .
+
+      - name: Download font
+        run: |
+          mkdir -p assets/fonts
+          curl -fsSL -o assets/fonts/Lalezar-Regular.ttf \
+            https://github.com/google/fonts/raw/main/ofl/lalezar/Lalezar-Regular.ttf
+
+      - name: Download illustrations
+        run: |
+          mkdir -p assets/images assets/videos
+          while read -r path url; do
+            [ -z "$path" ] && continue
+            curl -fsSL -o "$path" "$url" || echo "skip $path"
+          done < assets/manifest.txt
+          ls assets/images | wc -l
+
+      - name: App name and icon
+        run: |
+          sed -i 's/android:label="mishwar"/android:label="مشوار"/' android/app/src/main/AndroidManifest.xml
+          if [ -f assets/images/app_icon.png ]; then
+            for d in mipmap-mdpi:48 mipmap-hdpi:72 mipmap-xhdpi:96 mipmap-xxhdpi:144 mipmap-xxxhdpi:192; do
+              dir=${d%%:*}; size=${d##*:}
+              convert assets/images/app_icon.png -resize ${size}x${size} android/app/src/main/res/$dir/ic_launcher.png || true
+            done
+          fi
+
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      - run: flutter build apk --release --split-per-abi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: مشوار ${{ github.run_number }}
+          body: |
+            نسخة تجريبية من تطبيق مشوار.
+            لمعظم الموبايلات نزّل الملف اللي اسمو فيه arm64-v8a.
+          files: build/app/outputs/flutter-apk/*.apk
