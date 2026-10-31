@@ -298,7 +298,18 @@ class TripDoneScreen extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Column(children: [
               const Spacer(),
-              const Floaty(child: Illus('arrived_damascus', height: 280)),
+              Floaty(
+                child: Container(
+                  width: 260,
+                  height: 260,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 6),
+                    boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .25), blurRadius: 30, offset: const Offset(0, 14))],
+                  ),
+                  child: const ClipOval(child: Illus('arrived_damascus', fit: BoxFit.cover)),
+                ),
+              ),
               const SizedBox(height: 12),
               const Enter(child: Text('وصلت بالسلامة، الحمد لله', style: TextStyle(fontFamily: kFont, fontSize: 32, color: Colors.white))),
               const SizedBox(height: 14),
