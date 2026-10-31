@@ -69,6 +69,7 @@ jobs:
       - name: App name and icon
         run: |
           sed -i 's/android:label="mishwar"/android:label="مشوار"/' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' android/app/src/main/AndroidManifest.xml
           RES=android/app/src/main/res
           if [ -f assets/images/app_icon.png ]; then
             # قصّ الحواف، وشيل الزوايا المدوّرة لحتى الأيقونة تملا الشكل

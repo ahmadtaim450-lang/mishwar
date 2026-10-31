@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../widgets/common.dart';
-import 'splash.dart';
+import '../widgets/real_map.dart';
+import 'package:share_plus/share_plus.dart';
 import 'messages.dart';
 import 'profile.dart';
 import 'shell.dart';
@@ -198,7 +199,7 @@ class LiveTripScreen extends StatefulWidget {
 }
 
 class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 8600))..repeat();
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 60))..repeat();
   @override
   void dispose() {
     _c.dispose();
@@ -207,11 +208,11 @@ class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: C.primary,
+        backgroundColor: C.bg,
         body: Stack(children: [
           Positioned.fill(
-            bottom: 240,
-            child: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(12, 70, 12, 0), child: AnimatedBuilder(animation: _c, builder: (_, __) => CustomPaint(painter: SyriaMapPainter(t: _c.value))))),
+            bottom: 200,
+            child: AnimatedBuilder(animation: _c, builder: (_, __) => TripMap(cities: const ['اللاذقية', 'طرطوس', 'حمص', 'دمشق'], carProgress: .15 + _c.value * .8)),
           ),
           SafeArea(
             child: Padding(
@@ -276,14 +277,19 @@ class _ShareTripScreenState extends State<ShareTripScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: const TopBar(title: 'شارك رحلتك'),
         body: ListView(padding: const EdgeInsets.all(20), children: [
-          const Floaty(child: Illus('share_trip', height: 200)),
+          Container(
+            height: 220,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
+            clipBehavior: Clip.antiAlias,
+            child: const TripMap(cities: ['اللاذقية', 'طرطوس', 'حمص', 'دمشق'], carProgress: .55, interactive: false),
+          ),
+          const SizedBox(height: 12),
           const Text('أهلك بيقدروا يتابعوا موقعك ووقت وصولك برابط، بدون ما ينزلوا التطبيق.', style: T.body),
           const SizedBox(height: 14),
           ChoiceCards(multi: true, options: const [('أمي', '+963 9•• ••• •12'), ('أخي أحمد', '+963 9•• ••• •48'), ('أبي', '+963 9•• ••• •07')], selected: _sel, onTap: (i) => setState(() => _sel.contains(i) ? _sel.remove(i) : _sel.add(i))),
         ]),
-        bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn('شارك هلق', onTap: () {
-          toast(context, 'انبعت رابط التتبع');
-          Navigator.pop(context);
+        bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Btn('شارك هلق', icon: Icons.ios_share_rounded, onTap: () {
+          Share.share('أنا بالطريق مع مشوار 🚗\nاللاذقية ← دمشق مع سامر (كيا ريو فضي)\nالوصول المتوقع 11:20\nموقعي الحالي: https://www.openstreetmap.org/?mlat=34.73&mlon=36.71#map=9/34.73/36.71', subject: 'رحلتي مع مشوار');
         }))),
       );
 }

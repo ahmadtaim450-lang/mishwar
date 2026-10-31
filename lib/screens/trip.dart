@@ -5,6 +5,7 @@ import '../data/mock.dart';
 import '../widgets/common.dart';
 import 'search.dart' show TripCard;
 import 'splash.dart';
+import '../widgets/real_map.dart';
 import 'messages.dart';
 import 'profile.dart';
 import 'shell.dart';
@@ -114,11 +115,12 @@ class _RouteScreenState extends State<RouteScreen> with SingleTickerProviderStat
       appBar: const TopBar(title: 'المسار والوقفات'),
       body: Column(children: [
         Container(
-          height: 300,
+          height: 340,
+          width: double.infinity,
           margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(color: C.primary, borderRadius: BorderRadius.circular(26)),
-          padding: const EdgeInsets.all(12),
-          child: AnimatedBuilder(animation: _c, builder: (_, __) => CustomPaint(painter: SyriaMapPainter(t: _c.value), size: Size.infinite)),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(26)),
+          clipBehavior: Clip.antiAlias,
+          child: TripMap(cities: [t.from, ...t.stops, t.to]),
         ),
         Expanded(
           child: ListView(padding: const EdgeInsets.all(20), children: [
