@@ -107,7 +107,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        const Expanded(child: Text('رحلات ${dayLabel(widget.day)} من ${widget.from}', style: T.h3)),
+        Expanded(child: Text('رحلات ${dayLabel(widget.day)} من ${widget.from}', style: T.h3)),
         if (_sel != null)
           TextButton.icon(onPressed: _reset, icon: const Icon(Icons.zoom_out_map_rounded, size: 18), label: const Text('كل المدن', style: TextStyle(fontFamily: kFont)))
         else
