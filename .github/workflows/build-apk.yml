@@ -69,11 +69,27 @@ jobs:
       - name: App name and icon
         run: |
           sed -i 's/android:label="mishwar"/android:label="مشوار"/' android/app/src/main/AndroidManifest.xml
+          RES=android/app/src/main/res
           if [ -f assets/images/app_icon.png ]; then
-            for d in mipmap-mdpi:48 mipmap-hdpi:72 mipmap-xhdpi:96 mipmap-xxhdpi:144 mipmap-xxxhdpi:192; do
-              dir=${d%%:*}; size=${d##*:}
-              convert assets/images/app_icon.png -resize ${size}x${size} android/app/src/main/res/$dir/ic_launcher.png || true
+            # قصّ الحواف، وشيل الزوايا المدوّرة لحتى الأيقونة تملا الشكل
+            convert assets/images/app_icon.png -fuzz 12% -trim +repage /tmp/icon_trim.png
+            convert /tmp/icon_trim.png -gravity center -shave 9%x9% +repage /tmp/icon_full.png
+            for d in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
+              dir=mipmap-$(echo $d | cut -d: -f1); s=$(echo $d | cut -d: -f2); f=$(echo $d | cut -d: -f3)
+              mkdir -p $RES/$dir
+              convert /tmp/icon_trim.png -resize ${s}x${s}! $RES/$dir/ic_launcher.png
+              convert /tmp/icon_full.png -resize ${s}x${s}! \( +clone -alpha extract -fill black -colorize 100 -fill white -draw "circle $((s/2)),$((s/2)) $((s/2)),0" \) -alpha off -compose CopyOpacity -composite $RES/$dir/ic_launcher_round.png
+              convert /tmp/icon_full.png -resize ${f}x${f}! $RES/$dir/ic_launcher_foreground.png
             done
+            mkdir -p $RES/mipmap-anydpi-v26 $RES/values
+            for n in ic_launcher ic_launcher_round; do
+              printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n  <background android:drawable="@color/ic_launcher_background"/>\n  <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n' > $RES/mipmap-anydpi-v26/$n.xml
+            done
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="ic_launcher_background">#0AAFF5</color>\n</resources>\n' > $RES/values/ic_launcher_background.xml
+            grep -q 'android:roundIcon' android/app/src/main/AndroidManifest.xml || sed -i 's|android:icon="@mipmap/ic_launcher"|android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"|' android/app/src/main/AndroidManifest.xml
+            ls $RES/mipmap-xxxhdpi
+          else
+            echo "::warning::app_icon.png missing"
           fi
 
       - run: flutter pub get
