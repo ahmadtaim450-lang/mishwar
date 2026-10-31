@@ -33,7 +33,6 @@ ThemeData buildTheme() {
     splashFactory: InkSparkle.splashFactory,
     pageTransitionsTheme: const PageTransitionsTheme(builders: {
       TargetPlatform.android: ZoomPageTransitionsBuilder(allowEnterRouteSnapshotting: false),
-      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
     }),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
