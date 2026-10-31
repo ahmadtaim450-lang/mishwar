@@ -1,0 +1,116 @@
+name: Web (iPhone)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create web platform files
+        run: flutter create --platforms=web --org com.mishwar --project-name mishwar .
+
+      - name: Download font
+        run: |
+          mkdir -p assets/fonts
+          curl -fsSL -o assets/fonts/Lalezar-Regular.ttf \
+            https://github.com/google/fonts/raw/main/ofl/lalezar/Lalezar-Regular.ttf
+
+      - name: Download illustrations
+        run: |
+          mkdir -p assets/images assets/videos
+          while read -r path url; do
+            [ -z "$path" ] && continue
+            curl -fsSL -o "$path" "$url" || echo "skip $path"
+          done < assets/manifest.txt
+          ls assets/images | wc -l
+
+      - name: Install ImageMagick
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+
+      - name: Remove flat backgrounds from illustrations
+        run: |
+          cd assets/images
+          for f in onboard1 onboard2 onboard3 women_only family booked published welcome \
+                   city_damascus city_aleppo city_latakia city_homs city_tartus city_hama city_jableh city_daraa; do
+            [ -f "$f.png" ] || continue
+            W=$(identify -format "%w" "$f.png"); H=$(identify -format "%h" "$f.png")
+            X=$((W-1)); Y=$((H-1))
+            convert "$f.png" -alpha set -fuzz 9% -fill none \
+              -draw "color 0,0 floodfill" -draw "color $X,0 floodfill" \
+              -draw "color 0,$Y floodfill" -draw "color $X,$Y floodfill" \
+              -draw "color $((W/2)),0 floodfill" -draw "color 0,$((H/2)) floodfill" -draw "color $X,$((H/2)) floodfill" \
+              "$f.png" && echo "cleaned $f"
+          done
+
+      - name: Shrink images
+        run: |
+          cd assets/images
+          for f in *.png; do convert "$f" -resize '900x900>' -strip -define png:compression-level=9 "$f"; done
+          du -sh .
+
+      - name: PWA name, colors and icon
+        run: |
+          python3 - <<'PY'
+          import json, re
+          m = json.load(open('web/manifest.json'))
+          m.update(name='مشوار', short_name='مشوار', description='رحلات مشتركة بين المدن السورية', background_color='#0AAFF5', theme_color='#0AAFF5', display='standalone', orientation='portrait')
+          json.dump(m, open('web/manifest.json', 'w'), ensure_ascii=False, indent=2)
+          h = open('web/index.html').read()
+          h = h.replace('<html>', '<html lang="ar" dir="rtl">')
+          h = re.sub(r'<title>.*?</title>', '<title>مشوار</title>', h)
+          h = h.replace('content="mishwar"', 'content="مشوار"')
+          h = h.replace('</head>', '  <meta name="theme-color" content="#0AAFF5">\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n  <style>body{background:#0AAFF5}</style>\n</head>')
+          open('web/index.html', 'w').write(h)
+          PY
+          if [ -f assets/images/app_icon.png ]; then
+            convert assets/images/app_icon.png -fuzz 12% -trim +repage /tmp/i.png
+            for s in 192 512; do
+              convert /tmp/i.png -resize ${s}x${s}! web/icons/Icon-$s.png
+              convert /tmp/i.png -resize ${s}x${s}! web/icons/Icon-maskable-$s.png
+            done
+            convert /tmp/i.png -resize 180x180! web/icons/apple-touch-icon.png
+            convert /tmp/i.png -resize 48x48! web/favicon.png
+            sed -i 's|</head>|  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">\n</head>|' web/index.html
+          fi
+
+      - run: flutter pub get
+
+      - name: Build web
+        run: flutter build web --release --base-href /mishwar/
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
