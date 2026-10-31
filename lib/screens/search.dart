@@ -35,7 +35,7 @@ class _PlacesScreenState extends State<PlacesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final list = cities.where((c) => c.name != widget.exclude && (_q.isEmpty || c.name.contains(_q) || c.sub.contains(_q))).toList();
+    final list = searchCities(_q, exclude: widget.exclude);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: TopBar(title: widget.title, close: true),

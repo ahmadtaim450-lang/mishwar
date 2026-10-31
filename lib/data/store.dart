@@ -16,7 +16,53 @@ const geo = <String, (double, double)>{
   'النبك': (34.0237, 36.7280),
   'دمشق': (33.5138, 36.2765),
   'درعا': (32.6189, 36.1021),
+  'إدلب': (35.9306, 36.6339),
+  'الرقة': (35.9500, 39.0100),
+  'دير الزور': (35.3360, 40.1400),
+  'الحسكة': (36.5000, 40.7500),
+  'القامشلي': (37.0500, 41.2200),
+  'السويداء': (32.7090, 36.5660),
+  'تدمر': (34.5600, 38.2800),
+  'السلمية': (35.0110, 37.0530),
+  'صافيتا': (34.8200, 36.1170),
+  'القرداحة': (35.4560, 36.0560),
+  'منبج': (36.5280, 37.9550),
+  'القنيطرة': (33.1260, 35.8240),
 };
+
+/// توحيد الكتابة العربية للبحث: أ/إ/آ=ا، ة=ه، ى=ي، بلا تشكيل وبلا "ال" بأول الكلمة.
+String norm(String s) => s
+    .trim()
+    .replaceAll(RegExp('[\u064B-\u0652\u0640]'), '')
+    .replaceAll(RegExp('[أإآ]'), 'ا')
+    .replaceAll('ة', 'ه')
+    .replaceAll('ى', 'ي')
+    .replaceAllMapped(RegExp(r'(^|\s)ال'), (m) => m[1]!);
+
+/// المدن اللي بتطابق البحث، الأقرب أول.
+List<City> searchCities(String q, {String? exclude}) {
+  final list = cities.where((c) => c.name != exclude).toList();
+  final n = norm(q);
+  if (n.isEmpty) return list;
+  int score(City c) {
+    final name = norm(c.name), sub = norm(c.sub);
+    if (name == n) return 0;
+    if (name.startsWith(n)) return 1;
+    if (name.contains(n)) return 2;
+    if (sub.contains(n)) return 3;
+    return 9;
+  }
+  final r = list.where((c) => score(c) < 9).toList()..sort((a, b) => score(a).compareTo(score(b)));
+  return r;
+}
+
+City? cityNamed(String s) {
+  final n = norm(s);
+  for (final c in cities) {
+    if (norm(c.name) == n) return c;
+  }
+  return null;
+}
 
 double _hav(String a, String b) {
   final p = geo[a]!, q = geo[b]!;

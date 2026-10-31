@@ -507,7 +507,7 @@ class TripDoneScreen extends StatelessWidget {
                   border: Border.all(color: Colors.white, width: 6),
                   boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .25), blurRadius: 30, offset: const Offset(0, 14))],
                 ),
-                child: ClipOval(child: Illus(t.to == 'دمشق' ? 'arrived_damascus' : (cities.firstWhere((c) => c.name == t.to, orElse: () => cities.first).image), fit: BoxFit.cover)),
+                child: ClipOval(child: Illus(t.to == 'دمشق' ? 'arrived_damascus' : (cities.firstWhere((c) => c.name == t.to, orElse: () => cities.first).image.isEmpty ? 'welcome' : cities.firstWhere((c) => c.name == t.to).image), fit: BoxFit.cover)),
               ),
             ),
             const SizedBox(height: 16),

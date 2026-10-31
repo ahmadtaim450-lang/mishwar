@@ -5,19 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/theme.dart';
+import '../data/store.dart' show geo;
 
 /// مدن ونقاط حقيقية على الطريق الدولي (M1 / M5).
-const kCityPoints = <String, LatLng>{
-  'اللاذقية': LatLng(35.5196, 35.7832),
-  'جبلة': LatLng(35.3610, 35.9256),
-  'بانياس': LatLng(35.1828, 35.9486),
-  'طرطوس': LatLng(34.8890, 35.8866),
-  'حمص': LatLng(34.7324, 36.7137),
-  'حماة': LatLng(35.1318, 36.7578),
-  'حلب': LatLng(36.2021, 37.1343),
-  'النبك': LatLng(34.0237, 36.7280),
-  'دمشق': LatLng(33.5138, 36.2765),
-  'درعا': LatLng(32.6189, 36.1021),
+final kCityPoints = <String, LatLng>{
+  for (final e in geo.entries) e.key: LatLng(e.value.$1, e.value.$2),
 };
 
 /// مسار تقريبي على الأوتوستراد، بينستعمل إذا ما في نت.

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../data/store.dart';
+import '../data/location.dart';
 import '../widgets/common.dart';
 import '../widgets/dest_map.dart';
 import 'search.dart';
@@ -19,6 +20,97 @@ class _HomeScreenState extends State<HomeScreen> {
   String _from = 'اللاذقية', _to = 'دمشق';
   int _day = 1;
   final _s = Store.i;
+  late final _fromCtl = TextEditingController(text: _from);
+  late final _toCtl = TextEditingController(text: _to);
+  final _fromFocus = FocusNode(), _toFocus = FocusNode();
+  int _active = 0; // 0 ولا شي، 1 من، 2 إلى
+  double _turns = 0;
+  bool _locating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fromFocus.addListener(() => _focusChanged(1, _fromFocus.hasFocus));
+    _toFocus.addListener(() => _focusChanged(2, _toFocus.hasFocus));
+  }
+
+  @override
+  void dispose() {
+    _fromCtl.dispose();
+    _toCtl.dispose();
+    _fromFocus.dispose();
+    _toFocus.dispose();
+    super.dispose();
+  }
+
+  void _focusChanged(int field, bool has) {
+    if (has) {
+      final ctl = field == 1 ? _fromCtl : _toCtl;
+      ctl.selection = TextSelection(baseOffset: 0, extentOffset: ctl.text.length);
+      setState(() => _active = field);
+      return;
+    }
+    // طلع من الخانة: إذا الكتابة مدينة صحيحة منثبتها، غير هيك منرجّع آخر مدينة
+    final ctl = field == 1 ? _fromCtl : _toCtl;
+    final c = cityNamed(ctl.text);
+    setState(() {
+      if (c != null && c.name != (field == 1 ? _to : _from)) {
+        if (field == 1) {
+          _from = c.name;
+        } else {
+          _to = c.name;
+        }
+      }
+      ctl.text = field == 1 ? _from : _to;
+      if (_active == field) _active = 0;
+    });
+  }
+
+  void _choose(String name) {
+    final f = _active == 0 ? 2 : _active;
+    setState(() {
+      if (f == 1) {
+        if (name == _to) {
+          _to = _from;
+          _toCtl.text = _to;
+        }
+        _from = name;
+        _fromCtl.text = name;
+      } else {
+        _to = name;
+        _toCtl.text = name;
+      }
+    });
+    if (f == 1) {
+      _toFocus.requestFocus();
+    } else {
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  void _swap() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _turns += .5;
+      final t = _from;
+      _from = _to;
+      _to = t;
+      _fromCtl.text = _from;
+      _toCtl.text = _to;
+    });
+  }
+
+  Future<void> _locate() async {
+    setState(() => _locating = true);
+    final p = await myPosition();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (p == null) {
+      toast(context, 'ما قدرنا نحدد موقعك، تأكد إنو الموقع مشغّل');
+      return;
+    }
+    _choose(nearestCity(p.latitude, p.longitude, cities.map((c) => c.name)));
+  }
 
   String get _greet {
     final h = DateTime.now().hour;
@@ -37,26 +129,15 @@ class _HomeScreenState extends State<HomeScreen> {
     go(context, ResultsScreen(from: from, to: to, day: _day, pax: _s.pax));
   }
 
-  Future<void> _pick(bool isFrom) async {
-    final r = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => PlacesScreen(title: isFrom ? 'منين طالع؟' : 'لوين رايح؟', exclude: isFrom ? null : _from)));
-    if (r == null) return;
-    setState(() {
-      if (isFrom) {
-        if (r == _to) _to = _from;
-        _from = r;
-      } else {
-        _to = r;
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _s,
       builder: (context, _) {
         final next = _s.next;
-        return ListView(padding: EdgeInsets.zero, children: [
+        return GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: ListView(padding: EdgeInsets.zero, keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, children: [
           SizedBox(
             height: 270 + MediaQuery.of(context).padding.top,
             child: Stack(children: [
@@ -114,56 +195,149 @@ class _HomeScreenState extends State<HomeScreen> {
               ]),
             ),
           ),
-        ]);
+        ]),
+        );
       },
     );
   }
 
-  Widget _searchCard() => Container(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .12), blurRadius: 30, offset: const Offset(0, 12))]),
-        child: Column(children: [
-          Stack(children: [
-            Column(children: [
-              _field(Icons.radio_button_checked_rounded, 'من', _from, () => _pick(true)),
-              const Divider(height: 1, color: C.line),
-              _field(Icons.place_rounded, 'إلى', _to, () => _pick(false)),
-            ]),
-            Positioned(
-              left: 0,
-              top: 38,
-              child: Press(
-                onTap: () => setState(() {
-                  final t = _from;
-                  _from = _to;
-                  _to = t;
-                }),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: C.border, width: 1.5)),
-                  child: const Icon(Icons.swap_vert_rounded, color: C.primary),
+  Widget _searchCard() {
+    final q = _active == 1 ? _fromCtl.text : _toCtl.text;
+    final current = _active == 1 ? _from : _to;
+    final sugg = _active == 0 ? const <City>[] : searchCities(q == current ? '' : q, exclude: _active == 1 ? null : _from).take(6).toList();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .12), blurRadius: 30, offset: const Offset(0, 12))]),
+      child: Column(children: [
+        Stack(children: [
+          Column(children: [
+            _input(Icons.radio_button_checked_rounded, 'من', 'منين طالع؟', _fromCtl, _fromFocus, 1),
+            const Divider(height: 1, color: C.line),
+            _input(Icons.place_rounded, 'إلى', 'لوين رايح؟', _toCtl, _toFocus, 2),
+          ]),
+          Positioned(
+            left: 0,
+            top: 38,
+            child: Material(
+              color: Colors.white,
+              shape: const CircleBorder(side: BorderSide(color: C.border, width: 1.5)),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _swap,
+                child: SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: AnimatedRotation(turns: _turns, duration: const Duration(milliseconds: 350), curve: Curves.easeOutBack, child: const Icon(Icons.swap_vert_rounded, color: C.primary)),
                 ),
               ),
             ),
-          ]),
-          const Divider(height: 1, color: C.line),
-          Row(children: [
-            Expanded(child: _field(Icons.calendar_today_rounded, 'إيمتى', dayLabel(_day), () async {
-              final now = DateTime.now();
-              final d = await showDatePicker(context: context, initialDate: now.add(Duration(days: _day)), firstDate: now, lastDate: now.add(const Duration(days: 60)));
-              if (d != null) setState(() => _day = DateTime(d.year, d.month, d.day).difference(DateTime(now.year, now.month, now.day)).inDays);
-            })),
-            Container(width: 1.5, height: 40, color: C.line),
-            const SizedBox(width: 12),
-            Expanded(child: _field(Icons.person_outline_rounded, 'الركاب', paxLabel(_s.pax), () async {
-              final r = await Navigator.push<int>(context, MaterialPageRoute(builder: (_) => PassengersScreen(initial: _s.pax)));
-              if (r != null) setState(() => _s.pax = r);
-            })),
-          ]),
-          const SizedBox(height: 8),
-          Btn('دوّر على رحلة', icon: Icons.search_rounded, onTap: () => _search(_from, _to)),
+          ),
         ]),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _active == 0
+              ? const SizedBox(width: double.infinity)
+              : Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(color: C.bg, borderRadius: BorderRadius.circular(18)),
+                  child: Column(children: [
+                    if (_active == 1 && (q.isEmpty || q == current))
+                      _suggRow(Icons.my_location_rounded, _locating ? 'عم نحدد موقعك...' : 'استخدم موقعي الحالي', null, _locating ? null : _locate),
+                    for (final c in sugg) _suggRow(Icons.place_outlined, c.name, c.sub, () => _choose(c.name), selected: c.name == current),
+                    if (sugg.isEmpty)
+                      const Padding(padding: EdgeInsets.all(16), child: Text('ما لقينا هالمدينة. جرّب اسم تاني', style: T.small)),
+                  ]),
+                ),
+        ),
+        const Divider(height: 1, color: C.line),
+        Row(children: [
+          Expanded(child: _field(Icons.calendar_today_rounded, 'إيمتى', dayLabel(_day), () async {
+            FocusScope.of(context).unfocus();
+            final now = DateTime.now();
+            final d = await showDatePicker(context: context, initialDate: now.add(Duration(days: _day)), firstDate: now, lastDate: now.add(const Duration(days: 60)));
+            if (d != null) setState(() => _day = DateTime(d.year, d.month, d.day).difference(DateTime(now.year, now.month, now.day)).inDays);
+          })),
+          Container(width: 1.5, height: 40, color: C.line),
+          const SizedBox(width: 12),
+          Expanded(child: _field(Icons.person_outline_rounded, 'الركاب', paxLabel(_s.pax), () async {
+            FocusScope.of(context).unfocus();
+            final r = await Navigator.push<int>(context, MaterialPageRoute(builder: (_) => PassengersScreen(initial: _s.pax)));
+            if (r != null) setState(() => _s.pax = r);
+          })),
+        ]),
+        const SizedBox(height: 8),
+        Btn('دوّر على رحلة', icon: Icons.search_rounded, onTap: () {
+          FocusScope.of(context).unfocus();
+          _search(_from, _to);
+        }),
+      ]),
+    );
+  }
+
+  Widget _input(IconData icon, String label, String hint, TextEditingController ctl, FocusNode focus, int field) => SizedBox(
+        height: 64,
+        child: Row(children: [
+          Icon(icon, color: C.primary, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(label, style: T.small),
+              TextField(
+                controller: ctl,
+                focusNode: focus,
+                onChanged: (_) => setState(() {}),
+                onTapOutside: (_) {},
+                onSubmitted: (_) {
+                  final r = searchCities(ctl.text, exclude: field == 2 ? _from : null);
+                  if (r.isNotEmpty && ctl.text.trim().isNotEmpty) _choose(r.first.name);
+                },
+                textInputAction: field == 1 ? TextInputAction.next : TextInputAction.search,
+                style: T.label,
+                cursorColor: C.primary,
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: false,
+                  hintText: hint,
+                  contentPadding: const EdgeInsets.only(top: 2, bottom: 2, left: 48),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                ),
+              ),
+            ]),
+          ),
+          if (_active == field && ctl.text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 44),
+              child: IconButton(
+                tooltip: 'مسح',
+                icon: const Icon(Icons.close_rounded, size: 18, color: C.muted),
+                onPressed: () => setState(() => ctl.clear()),
+              ),
+            ),
+        ]),
+      );
+
+  Widget _suggRow(IconData i, String title, String? sub, VoidCallback? onTap, {bool selected = false}) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(children: [
+            Icon(i, size: 20, color: C.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: T.label),
+                if (sub != null) Text(sub, style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+            if (selected) const Icon(Icons.check_rounded, color: C.primary, size: 18),
+          ]),
+        ),
       );
 
   Widget _kindCard() {
