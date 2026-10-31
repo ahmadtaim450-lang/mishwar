@@ -441,7 +441,6 @@ class WomenRidesScreen extends StatelessWidget {
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
         Container(
           height: 220,
-          decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(28)),
           child: const Floaty(child: Illus('women_only', fit: BoxFit.contain)),
         ),
         const SizedBox(height: 16),

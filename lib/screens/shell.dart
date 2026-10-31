@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
+import '../widgets/common.dart';
 import 'home.dart';
 import 'publish.dart';
 import 'my_trips.dart';
@@ -50,7 +51,7 @@ class _AppShellState extends State<AppShell> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                         decoration: BoxDecoration(color: k == _i ? C.tint : Colors.transparent, borderRadius: BorderRadius.circular(14)),
                         child: Stack(clipBehavior: Clip.none, children: [
-                          Icon(_items[k].$1, color: k == _i ? C.primary : C.muted, size: 24),
+                          k == 3 ? RoundChatIcon(size: 24, color: k == _i ? C.primary : C.muted, filled: k == _i) : Icon(_items[k].$1, color: k == _i ? C.primary : C.muted, size: 24),
                           if (k == 3 && _i != 3) Positioned(top: -1, left: -2, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFFF0533A), shape: BoxShape.circle))),
                         ]),
                       ),

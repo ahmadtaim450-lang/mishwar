@@ -5,83 +5,115 @@ import '../data/syria_map.dart';
 import '../widgets/common.dart';
 import 'onboarding.dart';
 
-/// شاشة البداية: خريطة سوريا الحقيقية وسيارة بتمشي بين المدن.
-class SplashScreen extends StatefulWidget {
+/// شاشة البداية: كوكب صغير بيدور وعليه معالم سوريا، والسيارة ماشية فوقه.
+class SplashScreen extends StatelessWidget {
   const SplashScreen();
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  Widget build(BuildContext context) => Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [C.primary, Color(0xFF5FCBF8), Color(0xFFBFE6F7)])),
+          child: SafeArea(
+            child: Column(children: [
+              const SizedBox(height: 36),
+              const Enter(child: Text('مشوار', style: TextStyle(fontFamily: kFont, fontSize: 80, height: 1, color: Colors.white))),
+              const SizedBox(height: 6),
+              const Enter(delay: 150, child: Text('رفيقك بالطريق بين المدن', style: TextStyle(fontFamily: kFont, fontSize: 18, color: Colors.white))),
+              const Expanded(child: TinyPlanet()),
+              Enter(
+                delay: 900,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+                  child: Column(children: [
+                    Btn('يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, const OnboardingScreen())),
+                    const SizedBox(height: 10),
+                    const Text('بسم الله · مجاني لكل السوريين', style: TextStyle(fontFamily: kFont, fontSize: 13, color: C.dark)),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      );
 }
 
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late final AnimationController _drive = AnimationController(vsync: this, duration: const Duration(milliseconds: 8600))..repeat();
-  late final AnimationController _intro = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..forward();
-  ui.Image? _car;
-
+/// الكوكب الصغير: بيطلع من تحت، بيدور ببطء، والسيارة فوقه بتهتز خفيف كأنها ماشية.
+class TinyPlanet extends StatefulWidget {
+  final bool compact;
+  const TinyPlanet({this.compact = false});
   @override
-  void initState() {
-    super.initState();
-    _loadCar();
-  }
+  State<TinyPlanet> createState() => _TinyPlanetState();
+}
 
-  Future<void> _loadCar() async {
-    try {
-      final data = await DefaultAssetBundle.of(context).load('assets/images/car_topdown.png');
-      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(), targetWidth: 120);
-      final frame = await codec.getNextFrame();
-      if (mounted) setState(() => _car = frame.image);
-    } catch (_) {}
-  }
+class _TinyPlanetState extends State<TinyPlanet> with TickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(seconds: 26))..repeat();
+  late final AnimationController _bob = AnimationController(vsync: this, duration: const Duration(milliseconds: 420))..repeat(reverse: true);
+  late final AnimationController _intro = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..forward();
+  late final AnimationController _clouds = AnimationController(vsync: this, duration: const Duration(seconds: 9))..repeat(reverse: true);
 
   @override
   void dispose() {
-    _drive.dispose();
+    _spin.dispose();
+    _bob.dispose();
     _intro.dispose();
+    _clouds.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: C.primary,
-      body: SafeArea(
-        child: Column(children: [
-          const SizedBox(height: 40),
-          Enter(
-            child: Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .25), blurRadius: 30, offset: const Offset(0, 14))]),
-              child: const Icon(Icons.route_rounded, color: C.primary, size: 48),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Enter(delay: 150, child: Text('مشوار', style: TextStyle(fontFamily: kFont, fontSize: 76, height: 1, color: Colors.white))),
-          const SizedBox(height: 6),
-          const Enter(delay: 300, child: Text('رفيقك بالطريق بين المدن', style: TextStyle(fontFamily: kFont, fontSize: 18, color: Colors.white))),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              child: AnimatedBuilder(
-                animation: Listenable.merge([_drive, _intro]),
-                builder: (_, __) => CustomPaint(painter: SyriaMapPainter(t: _drive.value, intro: Curves.easeOutCubic.transform(_intro.value), car: _car), size: Size.infinite),
+  Widget build(BuildContext context) => LayoutBuilder(builder: (_, box) {
+        final size = (box.maxWidth * (widget.compact ? .62 : .95)).clamp(0.0, box.maxHeight * .9).toDouble();
+        final carW = size * .34;
+        return AnimatedBuilder(
+          animation: Listenable.merge([_spin, _bob, _intro, _clouds]),
+          builder: (_, __) {
+            final rise = Curves.easeOutCubic.transform(_intro.value);
+            final carIn = Curves.elasticOut.transform(((_intro.value - .55) / .45).clamp(0.0, 1.0).toDouble());
+            return Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
+              if (!widget.compact) ...[
+                Positioned(top: 10, left: 20 + 40 * _clouds.value, child: _cloud(90, .6)),
+                Positioned(top: 60, right: 10 + 30 * _clouds.value, child: _cloud(64, .45)),
+              ],
+              // هالة خفيفة
+              Container(
+                width: size * 1.05,
+                height: size * 1.05,
+                decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withValues(alpha: .35), Colors.white.withValues(alpha: 0)])),
               ),
-            ),
-          ),
-          Enter(
-            delay: 600,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
-              child: Column(children: [
-                Btn('يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, const OnboardingScreen())),
-                const SizedBox(height: 10),
-                const Text('بسم الله · مجاني لكل السوريين', style: TextStyle(fontFamily: kFont, fontSize: 13, color: Colors.white)),
-              ]),
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
+              Transform.translate(
+                offset: Offset(0, size * .55 * (1 - rise)),
+                child: Opacity(
+                  opacity: rise,
+                  child: SizedBox(
+                    width: size,
+                    height: size,
+                    child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                      Transform.rotate(
+                        angle: _spin.value * 2 * 3.14159265,
+                        child: Image.asset('assets/images/tiny_planet.png', width: size, height: size, fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Container(width: size * .7, height: size * .7, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF3BB37B)))),
+                      ),
+                      // السيارة فوق الكوكب
+                      Positioned(
+                        top: size * .5 - size * .36 - carW * .52 - 4 - (1 - carIn) * 60 - _bob.value * 2,
+                        child: Opacity(
+                          opacity: carIn.clamp(0.0, 1.0).toDouble(),
+                          child: Image.asset('assets/images/car_side.png', width: carW,
+                              errorBuilder: (_, __, ___) => Icon(Icons.directions_car_filled_rounded, size: carW * .6, color: Colors.white)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            ]);
+          },
+        );
+      });
+
+  Widget _cloud(double w, double o) => Opacity(
+        opacity: o,
+        child: Container(width: w, height: w * .38, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(w))),
+      );
 }
 
 class SyriaMapPainter extends CustomPainter {

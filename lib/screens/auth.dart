@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: AnimatedBuilder(animation: _c, builder: (_, __) => CustomPaint(painter: SyriaMapPainter(t: _c.value), size: Size.infinite)),
+                  child: const TinyPlanet(compact: true),
                 ),
               ),
             ),

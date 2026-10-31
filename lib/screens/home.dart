@@ -139,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
                       clipBehavior: Clip.antiAlias,
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Expanded(child: Container(color: C.tint, width: double.infinity, child: Illus(cities[i].image, fit: BoxFit.cover, fallback: Icons.location_city_rounded))),
+                        Expanded(child: Padding(padding: const EdgeInsets.all(6), child: Illus(cities[i].image, fit: BoxFit.contain, fallback: Icons.location_city_rounded))),
                         Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 10), child: Text(cities[i].name, style: T.label)),
                       ]),
                     ),

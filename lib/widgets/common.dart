@@ -525,3 +525,44 @@ void toast(BuildContext c, String msg) => ScaffoldMessenger.of(c).showSnackBar(S
       backgroundColor: C.dark,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ));
+
+/// أيقونة رسائل مدوّرة (فقاعة دائرية بذيل صغير وثلاث نقاط).
+class RoundChatIcon extends StatelessWidget {
+  final double size;
+  final Color color;
+  final bool filled;
+  const RoundChatIcon({this.size = 24, this.color = C.dark, this.filled = false});
+  @override
+  Widget build(BuildContext context) => CustomPaint(size: Size.square(size), painter: _RoundChatPainter(color, filled));
+}
+
+class _RoundChatPainter extends CustomPainter {
+  final Color color;
+  final bool filled;
+  _RoundChatPainter(this.color, this.filled);
+  @override
+  void paint(Canvas canvas, Size s) {
+    final w = s.width;
+    final c = Offset(w * .5, w * .47);
+    final r = w * .38;
+    final bubble = Path()
+      ..addOval(Rect.fromCircle(center: c, radius: r))
+      ..moveTo(c.dx - r * .55, c.dy + r * .72)
+      ..quadraticBezierTo(c.dx - r * .95, c.dy + r * 1.15, c.dx - r * 1.12, c.dy + r * 1.18)
+      ..quadraticBezierTo(c.dx - r * .9, c.dy + r * .85, c.dx - r * .88, c.dy + r * .5);
+    final stroke = Paint()
+      ..color = color
+      ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+      ..strokeWidth = w * .085
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(bubble, stroke);
+    final dot = Paint()..color = filled ? Colors.white : color;
+    for (final dx in [-.42, 0.0, .42]) {
+      canvas.drawCircle(Offset(c.dx + r * dx, c.dy), w * .055, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoundChatPainter o) => o.color != color || o.filled != filled;
+}

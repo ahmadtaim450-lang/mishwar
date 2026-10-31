@@ -55,3 +55,5 @@ assets/videos/vid_women.mp4 https://d8j0ntlcm91z4.cloudfront.net/user_3ENdBoSJPS
 assets/videos/vid_booked.mp4 https://d8j0ntlcm91z4.cloudfront.net/user_3ENdBoSJPSxsIw3iCBcZtT0WAoT/hf_20261031_003210_aed3aa36-5ca0-410c-8f2f-0be5c6a5f2cd.mp4
 assets/videos/vid_arrived.mp4 https://d8j0ntlcm91z4.cloudfront.net/user_3ENdBoSJPSxsIw3iCBcZtT0WAoT/hf_20261031_003210_fed9ffbd-f700-413c-90f5-412da0b3660e.mp4
 assets/videos/vid_welcome.mp4 https://d8j0ntlcm91z4.cloudfront.net/user_3ENdBoSJPSxsIw3iCBcZtT0WAoT/hf_20261031_003210_c84cd76b-c48f-4487-b2ad-08020391a166.mp4
+assets/images/tiny_planet.png https://d8j0ntlcm91z4.cloudfront.net/user_3ENdBoSJPSxsIw3iCBcZtT0WAoT/hf_20261031_013602_a5ff2021-0f48-45aa-aa33-1d1bd83aaad9.png
+assets/images/car_side.png https://d8j0ntlcm91z4.cloudfront.net/user_3ENdBoSJPSxsIw3iCBcZtT0WAoT/hf_20261031_013602_3c659438-e39e-45a0-95f3-d6e8ca3bf9af.png

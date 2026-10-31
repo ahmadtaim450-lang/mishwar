@@ -51,9 +51,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Expanded(
                           child: Container(
                             width: double.infinity,
-                            decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(32)),
-                            clipBehavior: Clip.antiAlias,
-                            child: Transform.translate(
+                                                        child: Transform.translate(
                               offset: Offset(d * 80, 0),
                               child: Floaty(child: Illus(p.$1, fit: BoxFit.contain)),
                             ),

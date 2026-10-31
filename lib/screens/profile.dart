@@ -143,7 +143,7 @@ class CarsScreen extends StatelessWidget {
   Widget build(BuildContext context) => _Simple('سياراتي', [
         CardBox(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(height: 150, decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(16)), child: const Illus('car_silver', fallback: Icons.directions_car_rounded)),
+            const SizedBox(height: 150, child: Illus('car_silver', fallback: Icons.directions_car_rounded)),
             const SizedBox(height: 10),
             const Row(children: [Expanded(child: Text('كيا ريو 2015 · فضي', style: T.h3)), Badge2('الافتراضية')]),
           ]),
@@ -201,7 +201,7 @@ class SafetyScreen extends StatelessWidget {
   const SafetyScreen();
   @override
   Widget build(BuildContext context) => _Simple('مركز الأمان', [
-        Container(height: 190, decoration: BoxDecoration(color: C.dark, borderRadius: BorderRadius.circular(26)), child: const Floaty(child: Illus('safety_shield'))),
+        const SizedBox(height: 190, child: Floaty(child: Illus('safety_shield'))),
         const SizedBox(height: 12),
         CardBox(
           color: C.dangerBg,

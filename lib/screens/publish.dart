@@ -14,7 +14,6 @@ class PublishStartScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Container(
             height: 260,
-            decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(30)),
             child: const Floaty(child: Illus('onboard2', fit: BoxFit.contain)),
           ),
           const SizedBox(height: 20),

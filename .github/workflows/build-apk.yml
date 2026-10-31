@@ -42,6 +42,27 @@ jobs:
           done < assets/manifest.txt
           ls assets/images | wc -l
 
+      - name: Remove flat backgrounds from illustrations
+        run: |
+          cd assets/images
+          for f in onboard1 onboard2 onboard3 women_only family booked published welcome \
+                   city_damascus city_aleppo city_latakia city_homs city_tartus city_hama city_jableh city_daraa; do
+            [ -f "$f.png" ] || continue
+            W=$(identify -format "%w" "$f.png"); H=$(identify -format "%h" "$f.png")
+            X=$((W-1)); Y=$((H-1))
+            convert "$f.png" -alpha set -fuzz 9% -fill none \
+              -draw "color 0,0 floodfill" -draw "color $X,0 floodfill" \
+              -draw "color 0,$Y floodfill" -draw "color $X,$Y floodfill" \
+              -draw "color $((W/2)),0 floodfill" -draw "color 0,$((H/2)) floodfill" -draw "color $X,$((H/2)) floodfill" \
+              "$f.png" && echo "cleaned $f"
+          done
+
+      - name: Shrink images
+        run: |
+          cd assets/images
+          for f in *.png; do convert "$f" -resize '900x900>' -strip -define png:compression-level=9 "$f"; done
+          du -sh .
+
       - name: App name and icon
         run: |
           sed -i 's/android:label="mishwar"/android:label="مشوار"/' android/app/src/main/AndroidManifest.xml
