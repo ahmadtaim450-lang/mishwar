@@ -4,6 +4,7 @@ import '../data/mock.dart';
 import '../widgets/common.dart';
 import 'search.dart';
 import 'messages.dart';
+import '../widgets/dest_map.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen();
@@ -122,31 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 22),
-            const Text('وجهات شائعة', style: T.h3),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 170,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: cities.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => Enter(
-                  delay: 260 + i * 60,
-                  child: Press(
-                    onTap: () => setState(() => _to = cities[i].name),
-                    child: Container(
-                      width: 150,
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Expanded(child: Padding(padding: const EdgeInsets.all(6), child: Illus(cities[i].image, fit: BoxFit.contain, fallback: Icons.location_city_rounded))),
-                        Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 10), child: Text(cities[i].name, style: T.label)),
-                      ]),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            DestinationsMap(from: _from, onSearch: (city) => go(context, ResultsScreen(from: _from, to: city, date: _dateLabel, pax: _pax))),
             const SizedBox(height: 22),
             const Text('عمليات بحث سابقة', style: T.h3),
             const SizedBox(height: 10),

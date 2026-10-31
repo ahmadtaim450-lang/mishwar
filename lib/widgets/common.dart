@@ -30,7 +30,7 @@ class Enter extends StatefulWidget {
   final Widget child;
   final int delay;
   final double dy;
-  const Enter({required this.child, this.delay = 0, this.dy = 18});
+  const Enter({super.key, required this.child, this.delay = 0, this.dy = 18});
   @override
   State<Enter> createState() => _EnterState();
 }
