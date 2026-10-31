@@ -28,13 +28,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           child: Column(children: [
             Container(
               width: double.infinity,
-              height: 320,
+              height: 300,
               decoration: const BoxDecoration(color: C.primary, borderRadius: BorderRadius.vertical(bottom: Radius.circular(36))),
               child: SafeArea(
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: const TinyPlanet(compact: true),
+                  child: AnimatedBuilder(animation: _c, builder: (_, __) => CustomPaint(painter: SyriaMapPainter(t: _c.value), size: Size.infinite)),
                 ),
               ),
             ),
