@@ -11,16 +11,22 @@ import 'profile.dart';
 
 class AppShell extends StatefulWidget {
   final int initial;
-  const AppShell({this.initial = 0});
+  final bool openPublish;
+  const AppShell({this.initial = 0, this.openPublish = false});
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
   late int _i = widget.initial;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openPublish) WidgetsBinding.instance.addPostFrameCallback((_) => go(context, const PublishStartScreen()));
+  }
   static const _items = [
     (Icons.search_rounded, 'بحث'),
-    (Icons.add_circle_outline_rounded, 'انشر'),
     (Icons.route_rounded, 'رحلاتي'),
     (Icons.chat_bubble_outline_rounded, 'الرسائل'),
     (Icons.person_outline_rounded, 'حسابي'),
@@ -28,7 +34,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [const HomeScreen(), const PublishStartScreen(), const MyTripsScreen(), const InboxScreen(), const ProfileScreen()];
+    final pages = [const HomeScreen(), const MyTripsScreen(), const InboxScreen(), const ProfileScreen()];
     return Scaffold(
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 280),
@@ -47,26 +53,7 @@ class _AppShellState extends State<AppShell> {
               child: Row(children: [
                 for (var k = 0; k < _items.length; k++)
                   Expanded(
-                    child: k == 1
-                        ? Press(
-                            onTap: () => setState(() => _i = k),
-                            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 250),
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: _i == 1 ? C.dark : C.primary,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [BoxShadow(color: C.primary.withValues(alpha: .35), blurRadius: 14, offset: const Offset(0, 6))],
-                                ),
-                                child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(_items[k].$2, style: TextStyle(fontFamily: kFont, fontSize: 11, color: _i == 1 ? C.dark : C.muted)),
-                            ]),
-                          )
-                        : InkWell(
+                    child: InkWell(
                             onTap: () {
                               HapticFeedback.selectionClick();
                               setState(() => _i = k);
@@ -78,7 +65,7 @@ class _AppShellState extends State<AppShell> {
                                 decoration: BoxDecoration(color: k == _i ? C.tint : Colors.transparent, borderRadius: BorderRadius.circular(14)),
                                 child: Stack(clipBehavior: Clip.none, children: [
                                   Icon(_items[k].$1, color: k == _i ? C.primary : C.muted, size: 24),
-                                  if ((k == 3 && _i != 3) || (k == 2 && _i != 2 && Store.i.driverPending > 0))
+                                  if ((k == 2 && _i != 2) || (k == 1 && _i != 1 && Store.i.driverPending > 0))
                                     Positioned(top: -1, left: -2, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFFF0533A), shape: BoxShape.circle))),
                                 ]),
                               ),

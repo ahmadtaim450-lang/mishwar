@@ -436,7 +436,7 @@ class _BookedScreenState extends State<BookedScreen> with SingleTickerProviderSt
                   ),
                 ),
                 const Spacer(),
-                Btn('تابع حجزي', onTap: () => goReplace(context, const AppShell(initial: 2))),
+                Btn('تابع حجزي', onTap: () => goReplace(context, const AppShell(initial: 1))),
                 const SizedBox(height: 8),
                 Btn('رجوع للرئيسية', kind: BtnKind.ghost, onTap: () => goReplace(context, const AppShell())),
               ]),

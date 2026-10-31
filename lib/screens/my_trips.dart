@@ -94,6 +94,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
       ]);
     }
     return Column(key: const ValueKey('d'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Btn('انشر رحلة جديدة', kind: BtnKind.outline, icon: Icons.add_rounded, onTap: () => go(context, const PublishFlow())),
+      const SizedBox(height: 14),
       for (final r in _s.rides) ...[
         Container(
           padding: const EdgeInsets.all(18),

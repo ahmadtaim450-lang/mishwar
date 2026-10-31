@@ -8,6 +8,7 @@ import '../widgets/dest_map.dart';
 import 'search.dart';
 import 'messages.dart';
 import 'my_trips.dart';
+import 'publish.dart' show PublishStartScreen;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen();
@@ -86,6 +87,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
                 const SizedBox(height: 14),
                 Enter(delay: 220, child: _kindCard()),
+                const SizedBox(height: 10),
+                Enter(
+                  delay: 260,
+                  child: CardBox(
+                    onTap: () => go(context, const PublishStartScreen()),
+                    child: Row(children: [
+                      Container(width: 46, height: 46, decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.add_road_rounded, color: C.primary)),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('طالع بسيارتك؟', style: T.label),
+                          Text('انشر رحلتك وقسّم مصروف الطريق', style: T.small),
+                        ]),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(color: C.primary, borderRadius: BorderRadius.circular(12)),
+                        child: const Text('انشر', style: TextStyle(fontFamily: kFont, color: Colors.white)),
+                      ),
+                    ]),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 DestinationsMap(from: _from, day: _day, onSearch: (city) => _search(_from, city)),
                 if (_s.recent.isNotEmpty) ...[

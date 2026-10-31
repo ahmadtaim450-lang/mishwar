@@ -8,8 +8,9 @@ import 'shell.dart';
 class PublishStartScreen extends StatelessWidget {
   const PublishStartScreen();
   @override
-  Widget build(BuildContext context) => SafeArea(
-        child: ListView(padding: const EdgeInsets.all(20), children: [
+  Widget build(BuildContext context) => Scaffold(
+        appBar: const TopBar(),
+        body: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), children: [
           const Enter(child: Text('عندك مقاعد فاضية؟', style: T.h1)),
           const Enter(delay: 100, child: Text('انشر رحلتك بدقيقة وقسّم مصروف الطريق.', style: T.body)),
           const SizedBox(height: 16),
@@ -298,7 +299,7 @@ class PublishedScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Badge2('$from ← $to', bg: C.dark, fg: Colors.white),
               const Spacer(),
-              Btn('شوف رحلتي', kind: BtnKind.white, onTap: () => goReplace(context, const AppShell(initial: 2))),
+              Btn('شوف رحلتي', kind: BtnKind.white, onTap: () => goReplace(context, const AppShell(initial: 1))),
               const SizedBox(height: 10),
               Btn('انشر رحلة الرجعة', kind: BtnKind.dark, icon: Icons.swap_horiz_rounded, onTap: () => goReplace(context, PublishFlow(from: to, to: from))),
             ]),

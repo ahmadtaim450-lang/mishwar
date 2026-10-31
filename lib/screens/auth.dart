@@ -328,7 +328,7 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(),
               Btn('دوّر على رحلة', kind: BtnKind.white, icon: Icons.search_rounded, onTap: () => goReplace(context, const AppShell())),
               const SizedBox(height: 10),
-              Btn('انشر رحلة', kind: BtnKind.dark, icon: Icons.add_circle_outline_rounded, onTap: () => goReplace(context, const AppShell(initial: 1))),
+              Btn('انشر رحلة', kind: BtnKind.dark, icon: Icons.add_circle_outline_rounded, onTap: () => goReplace(context, const AppShell(openPublish: true))),
             ]),
           ),
         ),
