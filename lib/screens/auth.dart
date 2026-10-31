@@ -27,7 +27,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         body: SingleChildScrollView(
           child: Column(children: [
             Container(
-              height: 300,
+              width: double.infinity,
+              height: 320,
               decoration: const BoxDecoration(color: C.primary, borderRadius: BorderRadius.vertical(bottom: Radius.circular(36))),
               child: SafeArea(
                 bottom: false,
