@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/syria_map.dart';
+import '../data/world_land.dart';
 import '../widgets/common.dart';
 import 'onboarding.dart';
 
@@ -36,7 +38,7 @@ class SplashScreen extends StatelessWidget {
       );
 }
 
-/// الكوكب الصغير: بيطلع من تحت، بيدور ببطء، والسيارة فوقه بتهتز خفيف كأنها ماشية.
+/// الكرة الأرضية بالكود: قارات حقيقية، سوريا مميّزة، والسيارة بتلف حوالين الكرة.
 class TinyPlanet extends StatefulWidget {
   final bool compact;
   const TinyPlanet({this.compact = false});
@@ -45,75 +47,199 @@ class TinyPlanet extends StatefulWidget {
 }
 
 class _TinyPlanetState extends State<TinyPlanet> with TickerProviderStateMixin {
-  late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(seconds: 26))..repeat();
-  late final AnimationController _bob = AnimationController(vsync: this, duration: const Duration(milliseconds: 420))..repeat(reverse: true);
-  late final AnimationController _intro = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..forward();
-  late final AnimationController _clouds = AnimationController(vsync: this, duration: const Duration(seconds: 9))..repeat(reverse: true);
+  late final AnimationController _orbit = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
+  late final AnimationController _intro = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..forward();
+  late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(seconds: 24))..repeat();
+  ui.Image? _car;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await DefaultAssetBundle.of(context).load('assets/images/car_side.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(), targetWidth: 360);
+      final f = await codec.getNextFrame();
+      if (mounted) setState(() => _car = f.image);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
-    _spin.dispose();
-    _bob.dispose();
+    _orbit.dispose();
     _intro.dispose();
-    _clouds.dispose();
+    _spin.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: (_, box) {
-        final size = (box.maxWidth * (widget.compact ? .62 : .95)).clamp(0.0, box.maxHeight * .9).toDouble();
-        final carW = size * .34;
-        return AnimatedBuilder(
-          animation: Listenable.merge([_spin, _bob, _intro, _clouds]),
-          builder: (_, __) {
-            final rise = Curves.easeOutCubic.transform(_intro.value);
-            final carIn = Curves.elasticOut.transform(((_intro.value - .55) / .45).clamp(0.0, 1.0).toDouble());
-            return Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
-              if (!widget.compact) ...[
-                Positioned(top: 10, left: 20 + 40 * _clouds.value, child: _cloud(90, .6)),
-                Positioned(top: 60, right: 10 + 30 * _clouds.value, child: _cloud(64, .45)),
-              ],
-              // هالة خفيفة
-              Container(
-                width: size * 1.05,
-                height: size * 1.05,
-                decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withValues(alpha: .35), Colors.white.withValues(alpha: 0)])),
-              ),
-              Transform.translate(
-                offset: Offset(0, size * .55 * (1 - rise)),
-                child: Opacity(
-                  opacity: rise,
-                  child: SizedBox(
-                    width: size,
-                    height: size,
-                    child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
-                      Transform.rotate(
-                        angle: _spin.value * 2 * 3.14159265,
-                        child: Image.asset('assets/images/tiny_planet.png', width: size, height: size, fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => Container(width: size * .7, height: size * .7, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF3BB37B)))),
-                      ),
-                      // السيارة فوق الكوكب
-                      Positioned(
-                        top: size * .5 - size * .36 - carW * .52 - 4 - (1 - carIn) * 60 - _bob.value * 2,
-                        child: Opacity(
-                          opacity: carIn.clamp(0.0, 1.0).toDouble(),
-                          child: Image.asset('assets/images/car_side.png', width: carW,
-                              errorBuilder: (_, __, ___) => Icon(Icons.directions_car_filled_rounded, size: carW * .6, color: Colors.white)),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-            ]);
-          },
-        );
-      });
-
-  Widget _cloud(double w, double o) => Opacity(
-        opacity: o,
-        child: Container(width: w, height: w * .38, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(w))),
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: Listenable.merge([_orbit, _intro, _spin]),
+        builder: (_, __) => CustomPaint(
+          size: Size.infinite,
+          painter: GlobePainter(orbit: _orbit.value, spin: _spin.value, intro: Curves.easeOutCubic.transform(_intro.value), car: _car, compact: widget.compact),
+        ),
       );
+}
+
+class GlobePainter extends CustomPainter {
+  final double orbit, spin, intro;
+  final ui.Image? car;
+  final bool compact;
+  GlobePainter({required this.orbit, this.spin = 0, required this.intro, this.car, this.compact = false});
+
+  static const _tilt = 24.0 * math.pi / 180; // ميلان الكرة لتبيّن منطقتنا
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final R = math.min(size.width, size.height) * (compact ? .3 : .3) * (.85 + .15 * intro);
+    final c = Offset(size.width / 2, size.height / 2 + (1 - intro) * 80);
+    final sphere = Rect.fromCircle(center: c, radius: R);
+    final lam0 = (38.0 + 40 * math.sin(spin * 2 * math.pi)) * math.pi / 180; // الكرة بتتمايل حوالين سوريا
+
+    // هالة الغلاف الجوي
+    canvas.drawCircle(c, R * 1.18, Paint()..shader = ui.Gradient.radial(c, R * 1.18, [Colors.white.withValues(alpha: .45 * intro), Colors.white.withValues(alpha: 0)], [.82, 1]));
+
+    // ظل الكرة على الأرض
+    canvas.drawOval(Rect.fromCenter(center: c + Offset(0, R * 1.32), width: R * 1.5, height: R * .18), Paint()
+      ..color = C.dark.withValues(alpha: .18 * intro)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10));
+
+    // المحيط
+    canvas.drawCircle(c, R, Paint()..shader = ui.Gradient.radial(c - Offset(R * .35, R * .4), R * 1.5, const [Color(0xFF5FD0FF), Color(0xFF0A8FD8), Color(0xFF064E7A)], const [0, .6, 1]));
+
+    // القارات (إسقاط متعامد)
+    canvas.save();
+    canvas.clipPath(Path()..addOval(sphere));
+    final land = Paint()..color = const Color(0xFF6BCB77);
+    final landEdge = Paint()
+      ..color = const Color(0xFF3E9E52)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final poly in landPolys) {
+      final path = _project(poly, c, R, lam0);
+      if (path != null) {
+        canvas.drawPath(path, land);
+        canvas.drawPath(path, landEdge);
+      }
+    }
+    final syr = _project(syriaLonLat, c, R, lam0);
+    if (syr != null) {
+      canvas.drawPath(syr, Paint()..color = C.yellow);
+      canvas.drawPath(syr, Paint()
+        ..color = C.dark
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4);
+    }
+    // دبوس نابض فوق سوريا
+    {
+      final lam = 38.3 * math.pi / 180, phi = 34.9 * math.pi / 180, dl = lam - lam0;
+      final x = math.cos(phi) * math.sin(dl);
+      final y = math.cos(_tilt) * math.sin(phi) - math.sin(_tilt) * math.cos(phi) * math.cos(dl);
+      final z = math.sin(_tilt) * math.sin(phi) + math.cos(_tilt) * math.cos(phi) * math.cos(dl);
+      if (z > .15) {
+        final p = Offset(c.dx + x * R, c.dy - y * R);
+        final k = (orbit * 3) % 1;
+        canvas.drawCircle(p, 6 + 16 * k, Paint()..color = C.yellow.withValues(alpha: .7 * (1 - k)));
+        final pin = Path()
+          ..moveTo(p.dx, p.dy)
+          ..cubicTo(p.dx - 9, p.dy - 9, p.dx - 9, p.dy - 18, p.dx - 9, p.dy - 18)
+          ..arcToPoint(Offset(p.dx + 9, p.dy - 18), radius: const Radius.circular(9))
+          ..cubicTo(p.dx + 9, p.dy - 9, p.dx, p.dy, p.dx, p.dy);
+        canvas.drawPath(pin, Paint()..color = C.yellow);
+        canvas.drawPath(pin, Paint()
+          ..color = C.dark
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8);
+        canvas.drawCircle(Offset(p.dx, p.dy - 18), 3.4, Paint()..color = C.dark);
+      }
+    }
+    canvas.restore();
+
+    // تظليل كروي (ضو من فوق يسار)
+    canvas.drawCircle(c, R, Paint()..shader = ui.Gradient.radial(c - Offset(R * .45, R * .5), R * 2, [Colors.white.withValues(alpha: .35), Colors.white.withValues(alpha: 0), Colors.black.withValues(alpha: .28)], const [0, .45, 1]));
+
+    // الطريق حوالين الكرة
+    final roadR = R + 4;
+    canvas.drawCircle(c, roadR, Paint()
+      ..color = C.dark
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 9);
+    final dash = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    const n = 48;
+    for (var i = 0; i < n; i++) {
+      final a0 = i * 2 * math.pi / n;
+      canvas.drawArc(Rect.fromCircle(center: c, radius: roadR), a0, math.pi / n, false, dash);
+    }
+
+    // السيارة: بتلف بعكس عقارب الساعة، دواليبها دايماً عالطريق
+    if (intro > .6) {
+      final theta = -math.pi / 2 - orbit * 2 * math.pi;
+      final w = R * .62;
+      final h = car == null ? w * .45 : w * car!.height / car!.width;
+      final pos = c + Offset(math.cos(theta), math.sin(theta)) * (roadR + 4);
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      canvas.rotate(theta + math.pi / 2);
+      // ظل خفيف تحت السيارة
+      canvas.drawOval(Rect.fromCenter(center: Offset(0, -2), width: w * .8, height: 6), Paint()
+        ..color = Colors.black.withValues(alpha: .25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+      final rect = Rect.fromLTWH(-w / 2, -h, w, h);
+      if (car != null) {
+        paintImage(canvas: canvas, rect: rect, image: car!, filterQuality: FilterQuality.high, fit: BoxFit.contain);
+      } else {
+        final body = RRect.fromRectAndCorners(Rect.fromLTWH(-w / 2, -h * .75, w, h * .55), topLeft: const Radius.circular(10), topRight: const Radius.circular(14), bottomLeft: const Radius.circular(6), bottomRight: const Radius.circular(6));
+        canvas.drawRRect(body, Paint()..color = Colors.white);
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(-w * .3, -h, w * .55, h * .3), const Radius.circular(10)), Paint()..color = C.primary);
+        for (final x in [-w * .3, w * .3]) {
+          canvas.drawCircle(Offset(x, -h * .2), h * .2, Paint()..color = C.dark);
+        }
+      }
+      canvas.restore();
+    }
+  }
+
+  Path? _project(List<double> ll, Offset c, double R, double lam0) {
+    final path = Path();
+    var visible = 0;
+    final sinT = math.sin(_tilt), cosT = math.cos(_tilt);
+    for (var i = 0; i < ll.length; i += 2) {
+      final lam = ll[i] * math.pi / 180, phi = ll[i + 1] * math.pi / 180;
+      final cosPhi = math.cos(phi), sinPhi = math.sin(phi);
+      final dl = lam - lam0;
+      var x = cosPhi * math.sin(dl);
+      var y = cosT * sinPhi - sinT * cosPhi * math.cos(dl);
+      final z = sinT * sinPhi + cosT * cosPhi * math.cos(dl);
+      if (z < 0) {
+        // نقطة ورا الكرة: منلصقها عالحافة
+        final l = math.sqrt(x * x + y * y);
+        if (l > 0) {
+          x /= l;
+          y /= l;
+        }
+      } else {
+        visible++;
+      }
+      final p = Offset(c.dx + x * R, c.dy - y * R);
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    if (visible == 0) return null;
+    return path..close();
+  }
+
+  @override
+  bool shouldRepaint(covariant GlobePainter o) => true;
 }
 
 class SyriaMapPainter extends CustomPainter {
