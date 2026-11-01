@@ -48,6 +48,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
   Object? _error;
   bool _ready = false;
   bool _outside = false;
+  GeoBounds? _view; // الحدود الظاهرة هلأ (القائمة بتعرض اللي جوّاها بس)
   double _zoom = 7, _rotation = 0;
   bool _following = false;
 
@@ -153,6 +154,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
   void _requestView(MapCamera cam, {bool now = false}) {
     if (!_showTrips) return;
     final view = _viewOf(cam);
+    if (view != _view) setState(() => _view = view);
     final outside = view == null;
     if (outside != _outside) setState(() => _outside = outside);
     if (view == null) return;
@@ -759,7 +761,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
       );
 
   List<Widget> _tripSlivers() {
-    final list = _group ?? _trips;
+    final list = _group ?? (_view == null ? _trips : _trips.where((t) => _view!.contains(t.point)).toList());
     final title = _group != null
         ? (_groupTitle == null ? 'الرحلة المختارة' : '${tripsLabel(list.length)} ${_groupTitle!}')
         : _loading && _trips.isEmpty
