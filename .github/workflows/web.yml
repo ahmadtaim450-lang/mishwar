@@ -108,10 +108,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          MAP_TILES_LIGHT: ${{ secrets.MAP_TILES_LIGHT }}
+          MAP_ATTRIBUTION: ${{ secrets.MAP_ATTRIBUTION }}
         run: |
           cp -r site/track site/admin site/vendor build/web/
           # مفتاح anon عام بطبيعته (الحماية من RLS)، ما في أسرار هون
-          printf 'window.MISHWAR = { url: "%s", anon: "%s" };\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > build/web/config.js
+          # مفتاح الخرائط (إذا موجود) عام ومقيّد على الدومين من لوحة المزود
+          printf 'window.MISHWAR = { url: "%s", anon: "%s", tiles: "%s", attribution: "%s" };\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" "$MAP_TILES_LIGHT" "$MAP_ATTRIBUTION" > build/web/config.js
           ls build/web
 
       - uses: actions/configure-pages@v5

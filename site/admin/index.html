@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Lalezar&display=swap" rel="stylesheet">
 <script src="../config.js"></script>
 <script src="../vendor/supabase.js"></script>
+<link rel="stylesheet" href="../vendor/leaflet.css">
+<script src="../vendor/leaflet.js"></script>
 <style>
   :root { --p: #0AAFF5; --d: #064854; --y: #FFD25E; --bg: #F3F5F5; --m: #5E7676; --line: #EEF1F1; --border: #DDE3E3; --danger: #9A2A17; --dbg: #FDE6E2; --ok: #1E9E5A; }
   * { box-sizing: border-box; }
@@ -56,6 +58,8 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   td, th { text-align: start; padding: 8px; border-bottom: 1.5px solid var(--line); font-weight: 400; }
   th { color: var(--m); }
+  .pin { width: 22px !important; height: 22px !important; margin: -11px 0 0 -11px !important; border-radius: 50%; background: var(--d); border: 4px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 </style>
 </head>
 <body>
@@ -86,7 +90,7 @@
   function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 3500); }
   function err(e) {
     var m = (e && (e.message || e.error_description)) || 'خطأ';
-    var map = { FORBIDDEN: 'ما عندك صلاحية', DOCUMENTS_MISSING: 'في أوراق ناقصة بالطلب', INVALID_STATE: 'هالخطوة مو ممكنة بهالحالة', NOT_FOUND: 'مو موجود' };
+    var map = { POINT_TOO_FAR: 'النقطة بعيدة عن المدينة المختارة (لازم ضمن 40 كم)', OUTSIDE_SYRIA: 'النقطة برّا سوريا', FORBIDDEN: 'ما عندك صلاحية', DOCUMENTS_MISSING: 'في أوراق ناقصة بالطلب', INVALID_STATE: 'هالخطوة مو ممكنة بهالحالة', NOT_FOUND: 'مو موجود' };
     Object.keys(map).forEach(function (k) { if (m.indexOf(k) >= 0) m = map[k]; });
     toast(m);
   }
@@ -117,7 +121,7 @@
 
   function shell(counts) {
     var tabs = [['overview', 'نظرة عامة', null], ['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null], ['trips', 'الرحلات', null]];
-    if (me.role === 'admin') { tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
+    if (me.role === 'admin') { tabs.push(['places', 'نقاط التجمع', null]); tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
     return [
       el('header', {}, [el('h1', { text: 'مشوار · الإدارة' }), el('span', { 'class': 'who', text: me.full_name + ' · ' + (me.role === 'admin' ? 'مدير' : 'مشرف') }),
         el('button', { 'class': 'btn ghost', on: { click: function () { sb.auth.signOut().then(loginView); } }, text: 'خروج' })]),
@@ -149,10 +153,87 @@
       sb.from('profiles').select('id', { count: 'exact', head: true }).not('deletion_requested_at', 'is', null)
     ]).then(function (r) {
       app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0, deletions: r[2].count || 0 }));
-      ({ overview: overviewView, trips: tripsView, apps: appsView, reports: reportsView, drivers: driversView, deletions: deletionsView, audit: auditView })[tab]();
+      ({ overview: overviewView, trips: tripsView, apps: appsView, reports: reportsView, drivers: driversView, places: placesView, deletions: deletionsView, audit: auditView })[tab]();
     });
   }
   function main() { return document.getElementById('main'); }
+
+  // ── نقاط التجمع والكراجات (بتبين للركاب بالبحث وعلى الخريطة) ──
+  function placesView() {
+    var KIND = { garage: 'كراج', meeting_point: 'نقطة تجمع', landmark: 'معلم معروف' };
+    var mapBox = el('div', { style: 'height:480px;border-radius:16px;overflow:hidden' });
+    var city = el('select', { id: 'pcity' }, Object.keys(CITY).map(function (k) { return el('option', { value: k, text: CITY[k] }); }));
+    var nameAr = el('input', { id: 'pname', maxlength: '80', required: true });
+    var nameEn = el('input', { id: 'pen', maxlength: '80', dir: 'ltr' });
+    var nameDe = el('input', { id: 'pde', maxlength: '80', dir: 'ltr' });
+    var kind = el('select', { id: 'pkind' }, Object.keys(KIND).map(function (k) { return el('option', { value: k, text: KIND[k] }); }));
+    var lat = el('input', { id: 'plat', inputmode: 'decimal', required: true, dir: 'ltr', readonly: true, placeholder: 'اضغط عالخريطة' });
+    var lon = el('input', { id: 'plon', inputmode: 'decimal', required: true, dir: 'ltr', readonly: true, placeholder: 'اضغط عالخريطة' });
+    var save = el('button', { 'class': 'btn', type: 'submit', text: 'احفظ النقطة' });
+    var cancel = el('button', { 'class': 'btn ghost', type: 'button', text: 'جديد', on: { click: function () { reset(); } } });
+    var list = el('div', {});
+    var editing = null, map = null, pin = null, layer = null;
+    var form = el('form', { 'class': 'card', on: { submit: function (ev) {
+      ev.preventDefault();
+      if (!lat.value) return toast('حدد المكان على الخريطة أول');
+      save.disabled = true;
+      sb.rpc('admin_upsert_place', { p_id: editing, p_city: city.value, p_name_ar: nameAr.value, p_kind: kind.value, p_lat: Number(lat.value), p_lon: Number(lon.value),
+        p_name_en: nameEn.value || null, p_name_de: nameDe.value || null }).then(function (r) {
+        save.disabled = false;
+        if (r.error) return err(r.error);
+        toast('انحفظت النقطة'); reset(); load();
+      });
+    } } }, [el('h3', { text: 'نقطة تجمع أو كراج' }),
+      el('label', { 'for': 'pcity', text: 'المدينة' }), city,
+      el('label', { 'for': 'pname', text: 'الاسم بالعربي' }), nameAr,
+      el('div', { 'class': 'row2' }, [el('div', {}, [el('label', { 'for': 'pen', text: 'English' }), nameEn]), el('div', {}, [el('label', { 'for': 'pde', text: 'Deutsch' }), nameDe])]),
+      el('label', { 'for': 'pkind', text: 'النوع' }), kind,
+      el('div', { 'class': 'row2' }, [el('div', {}, [el('label', { 'for': 'plat', text: 'خط العرض' }), lat]), el('div', {}, [el('label', { 'for': 'plon', text: 'خط الطول' }), lon])]),
+      el('div', { 'class': 'actions' }, [save, cancel])]);
+    main().replaceChildren(el('div', { 'class': 'grid' }, [
+      el('div', {}, [form, el('div', { 'class': 'card list' }, [el('h3', { text: 'النقاط المسجّلة' }), list])]),
+      el('div', { 'class': 'card' }, [el('p', { 'class': 'muted', text: 'اضغط على الخريطة لتحدد المكان بالزبط، وفيك تسحب الدبوس. النقطة لازم تكون قريبة من المدينة.' }), mapBox])]));
+
+    function setPin(p) {
+      lat.value = p.lat.toFixed(6); lon.value = p.lng.toFixed(6);
+      if (!map) return;
+      if (pin) pin.setLatLng(p);
+      else pin = L.marker(p, { draggable: true, keyboard: true, icon: L.divIcon({ className: 'pin', iconSize: [22, 22] }) }).addTo(map).on('dragend', function () { setPin(pin.getLatLng()); });
+    }
+    function reset() {
+      editing = null; form.reset(); save.textContent = 'احفظ النقطة';
+      if (pin && map) { map.removeLayer(pin); pin = null; }
+    }
+    if (window.L) {
+      map = L.map(mapBox).setView([34.8, 37.5], 7);
+      L.tileLayer(cfg.tiles || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: cfg.attribution || '© OpenStreetMap contributors' }).addTo(map);
+      layer = L.layerGroup().addTo(map);
+      map.on('click', function (e) { setPin(e.latlng); });
+    } else {
+      mapBox.appendChild(el('div', { 'class': 'empty', text: 'الخريطة ما انحمّلت' }));
+    }
+    function load() {
+      sb.from('places').select('id, city_id, name_ar, name_en, name_de, kind, lat, lon, active').order('city_id').order('name_ar').then(function (r) {
+        if (r.error) return err(r.error);
+        if (layer) layer.clearLayers();
+        list.replaceChildren();
+        if (!r.data.length) list.appendChild(el('div', { 'class': 'muted', text: 'لسا ما في نقاط. ضيف أول كراج من الفورم.' }));
+        r.data.forEach(function (p) {
+          if (layer) L.circleMarker([p.lat, p.lon], { radius: 8, color: p.active ? '#0AAFF5' : '#9AA', weight: 3 }).bindTooltip(el('span', { text: p.name_ar })).addTo(layer);
+          list.appendChild(el('div', { 'class': 'item', style: 'cursor:default' }, [
+            el('div', { style: 'flex:1' }, [el('div', { text: p.name_ar }), el('div', { 'class': 'muted', text: (CITY[p.city_id] || p.city_id) + ' · ' + (KIND[p.kind] || p.kind) + (p.active ? '' : ' · موقوفة') })]),
+            el('button', { 'class': 'btn ghost', type: 'button', text: 'عدّل', on: { click: function () {
+              editing = p.id; city.value = p.city_id; nameAr.value = p.name_ar; nameEn.value = p.name_en || ''; nameDe.value = p.name_de || ''; kind.value = p.kind;
+              setPin({ lat: p.lat, lng: p.lon }); if (map) map.setView([p.lat, p.lon], 15); save.textContent = 'احفظ التعديل';
+            } } }),
+            el('button', { 'class': p.active ? 'btn bad' : 'btn ok', type: 'button', text: p.active ? 'وقّف' : 'فعّل', on: { click: function () {
+              sb.rpc('admin_set_place_active', { p_id: p.id, p_active: !p.active }).then(function (r2) { if (r2.error) return err(r2.error); load(); });
+            } } })]));
+        });
+      });
+    }
+    load();
+  }
 
   // ── نظرة عامة ──
   function overviewView() {

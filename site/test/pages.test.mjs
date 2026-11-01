@@ -71,6 +71,53 @@ await page.waitForFunction(() => document.getElementById('toast').textContent.in
 check(true, 'دخول غلط بلوحة الإدارة بيعطي رسالة');
 await page.screenshot({ path: '/tmp/admin.png' });
 
+// 4) لوحة الإدارة: نقاط التجمع على الخريطة (جلسة مدير وهمية)
+const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const p2 = await ctx2.newPage();
+p2.on('pageerror', (e) => errors.push(e.message));
+await p2.route(/tile\.openstreetmap|fonts\.(googleapis|gstatic)/, (r) => r.abort());
+const exp = Math.floor(Date.now() / 1000) + 3600;
+const jwt = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const access = `${jwt({ alg: 'HS256', typ: 'JWT' })}.${jwt({ sub: '00000000-0000-0000-0000-00000000000a', role: 'authenticated', exp })}.sig`;
+await p2.addInitScript(([tok, e]) => {
+  localStorage.setItem('sb-demo-auth-token', JSON.stringify({ access_token: tok, refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: e,
+    user: { id: '00000000-0000-0000-0000-00000000000a', aud: 'authenticated', role: 'authenticated', email: 'a@m.test' } }));
+}, [access, exp]);
+const places = [];
+let upsert = null;
+await p2.route('https://demo.supabase.co/**', async (r) => {
+  const u = new URL(r.request().url());
+  const send = (json, headers = {}) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-0/0', ...headers }, body: JSON.stringify(json) });
+  if (u.pathname.endsWith('/rpc/my_profile')) return send({ id: '00000000-0000-0000-0000-00000000000a', role: 'admin', full_name: 'مدير' });
+  if (u.pathname.endsWith('/rpc/admin_stats')) return send({ users: 1, drivers: 0, pending_applications: 0, trips_upcoming: 0, trips_today: 0, bookings_week: 0, confirmed_week: 0, open_reports: 0, suspended: 0, top_routes: [] });
+  if (u.pathname.endsWith('/rpc/admin_upsert_place')) {
+    upsert = JSON.parse(r.request().postData());
+    places.push({ id: 'p1', city_id: upsert.p_city, name_ar: upsert.p_name_ar, name_en: upsert.p_name_en, name_de: upsert.p_name_de, kind: upsert.p_kind, lat: upsert.p_lat, lon: upsert.p_lon, active: true });
+    return send('p1');
+  }
+  if (u.pathname.endsWith('/rest/v1/places')) return send(places);
+  return send([]);
+});
+await p2.goto(`${base}/admin/`);
+await p2.waitForSelector('nav [role=tab]', { timeout: 5000 });
+await p2.click('nav [role=tab]:has-text("نقاط التجمع")');
+await p2.waitForSelector('.leaflet-container', { timeout: 5000 });
+check(await p2.isVisible('text=لسا ما في نقاط'), 'قائمة النقاط فاضية بالبداية');
+await p2.selectOption('#pcity', 'homs');
+await p2.fill('#pname', 'كراج <b>حمص</b> الجديد');
+await p2.fill('#pen', 'Homs New Garage');
+const box = await p2.locator('.leaflet-container').boundingBox();
+await p2.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+check((await p2.inputValue('#plat')) !== '' && (await p2.$$('.pin')).length === 1, 'الضغط على الخريطة بيحط دبوس وبيعبّي الإحداثيات');
+await p2.click('form.card button[type=submit]');
+await p2.waitForFunction(() => document.getElementById('toast').textContent.includes('انحفظت'), null, { timeout: 5000 });
+check(upsert && upsert.p_city === 'homs' && upsert.p_name_en === 'Homs New Garage' && typeof upsert.p_lat === 'number', 'الحفظ بيبعت المدينة والأسماء والإحداثيات');
+await p2.waitForSelector('text=كراج <b>حمص</b> الجديد', { timeout: 5000 });
+check((await p2.$$('.list b')).length === 0, 'اسم النقطة بينعرض كنص (ما في XSS)');
+check((await p2.$$('path.leaflet-interactive')).length === 1, 'النقطة ظهرت على الخريطة');
+await p2.screenshot({ path: '/tmp/admin_places.png' });
+await ctx2.close();
+
 check(errors.length === 0, `ما في أخطاء JavaScript ${errors.join(' | ')}`);
 await browser.close();
 server.close();
