@@ -154,7 +154,8 @@ ok(ac.body.results?.[0]?.name === 'حمص', 'اقتراحات أثناء الك�
 const rv = await geo(rider, { op: 'reverse', lat: 35.5196, lon: 35.7832 });
 ok(rv.body.result?.lat === 35.5196, 'عنوان من إحداثيات');
 ok((await service.from('geo_cache').select('key', { count: 'exact', head: true })).count >= 3, 'النتائج انحفظت بالكاش');
-ok((await rider.c.from('geo_cache').select('key')).data?.length === 0, 'الكاش مو مقروء للمستخدمين');
+const gc = await rider.c.from('geo_cache').select('key');
+ok(!!gc.error || gc.data?.length === 0, 'الكاش مو مقروء للمستخدمين');
 let limited = false;
 for (let i = 0; i < 8 && !limited; i++) limited = (await geo(rider, { op: 'reverse', lat: 35.0 + i / 100, lon: 36.0 })).status === 429;
 ok(limited, 'حد الطلبات بالساعة');
