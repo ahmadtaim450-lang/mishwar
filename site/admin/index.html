@@ -117,7 +117,7 @@
 
   function shell(counts) {
     var tabs = [['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null]];
-    if (me.role === 'admin') tabs.push(['audit', 'سجل العمليات', null]);
+    if (me.role === 'admin') { tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
     return [
       el('header', {}, [el('h1', { text: 'مشوار · الإدارة' }), el('span', { 'class': 'who', text: me.full_name + ' · ' + (me.role === 'admin' ? 'مدير' : 'مشرف') }),
         el('button', { 'class': 'btn ghost', on: { click: function () { sb.auth.signOut().then(loginView); } }, text: 'خروج' })]),
@@ -145,10 +145,11 @@
   function render() {
     Promise.all([
       sb.from('driver_applications').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'reviewing']),
-      sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'open')
+      sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+      sb.from('profiles').select('id', { count: 'exact', head: true }).not('deletion_requested_at', 'is', null)
     ]).then(function (r) {
-      app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0 }));
-      ({ apps: appsView, reports: reportsView, drivers: driversView, audit: auditView })[tab]();
+      app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0, deletions: r[2].count || 0 }));
+      ({ apps: appsView, reports: reportsView, drivers: driversView, deletions: deletionsView, audit: auditView })[tab]();
     });
   }
   function main() { return document.getElementById('main'); }
@@ -283,6 +284,29 @@
             el('td', {}, [d.driver_status === 'approved'
               ? btn('إيقاف', 'bad', function () { return sb.rpc('admin_set_driver_status', { p_user: d.id, p_status: 'suspended', p_note: null }); }, true)
               : btn('تفعيل', 'ok', function () { return sb.rpc('admin_set_driver_status', { p_user: d.id, p_status: 'approved', p_note: null }); }, true)])]);
+        }))]));
+    });
+  }
+
+  // ── طلبات حذف الحساب (للمدير) ──
+  function deletionsView() {
+    var box = el('div', { 'class': 'card' });
+    main().replaceChildren(box);
+    sb.from('profiles').select('id, full_name, driver_status, deletion_requested_at').not('deletion_requested_at', 'is', null).order('deletion_requested_at').then(function (r) {
+      if (r.error) return err(r.error);
+      if (!r.data.length) return box.appendChild(el('div', { 'class': 'empty', text: 'ما في طلبات حذف' }));
+      box.appendChild(el('p', { 'class': 'muted', text: 'الحذف نهائي: بينحذف الحساب وأوراقو ورحلاتو ورسائلو. حجوزاتو الجاية انلغت وقت الطلب.' }));
+      box.appendChild(el('table', {}, [el('thead', {}, [el('tr', {}, ['الاسم', 'وقت الطلب', ''].map(function (h) { return el('th', { text: h }); }))]),
+        el('tbody', {}, r.data.map(function (d) {
+          return el('tr', {}, [el('td', { text: d.full_name }), el('td', { text: fmt(d.deletion_requested_at) }), el('td', {}, [btn('احذف نهائياً', 'bad', function () {
+            return sb.auth.getSession().then(function (s) {
+              return fetch(cfg.url + '/functions/v1/admin-delete-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': cfg.anon, 'Authorization': 'Bearer ' + s.data.session.access_token },
+                body: JSON.stringify({ user_id: d.id })
+              }).then(function (res) { return res.ok ? {} : { error: { message: 'HTTP ' + res.status } }; });
+            });
+          }, true)])]);
         }))]));
     });
   }

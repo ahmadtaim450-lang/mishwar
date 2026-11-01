@@ -249,6 +249,19 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d
 select t.expect_error(format($$select public.publish_trip(%L, 'latakia', 'damascus', null, null, now() + interval '5 days', 240, 75000, 3, 'men')$$, (select v from t.ids where k = 'veh_d')), 'NOT_APPROVED_DRIVER');
 select t.ok((select count(*) from public.reports) = 0, 'reported driver cannot read reports');
 
+\echo '▶ أجهزة الإشعارات'
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select t.expect_error($$select public.register_device('short', 'android')$$, 'INVALID_INPUT');
+select public.register_device(repeat('t', 40), 'android');
+select public.register_device(repeat('t', 40), 'android');
+select t.ok((select count(*) from public.device_tokens) = 1, 'token registered once');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select t.ok((select count(*) from public.device_tokens) = 0, 'other users cannot see tokens');
+select t.expect_error($$insert into public.device_tokens (token, user_id, platform) values (repeat('x', 40), auth.uid(), 'web')$$, 'DENIED');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select public.unregister_device(repeat('t', 40));
+select t.ok((select count(*) from public.device_tokens) = 0, 'token removed');
+
 \echo '▶ طلب حذف الحساب'
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000009', true);
 select public.request_account_deletion();

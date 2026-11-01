@@ -120,9 +120,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
           set +e
-          flutter build apk --release --split-per-abi --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" 2>&1 | tee build.log
+          flutter build apk --release --split-per-abi --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" 2>&1 | tee build.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|FAILURE|What went wrong" -A2 build.log | head -60 | while read -r l; do echo "::error::$l"; done

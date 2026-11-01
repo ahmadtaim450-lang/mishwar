@@ -373,6 +373,7 @@ class Store extends ChangeNotifier {
       }
       _notesLoaded = true;
       notifyListeners();
+      if (profile?.complete ?? false) unawaited(onSignedIn?.call() ?? Future.value());
     } catch (_) {
       // التحديث بالخلفية: إذا فشل منحافظ عالبيانات القديمة
     }
@@ -547,6 +548,15 @@ class Store extends ChangeNotifier {
         await backend.requestDeletion();
         await signOut();
       });
+
+  /// بينادى بعد الدخول (الإشعارات). بيتعيّن من main لحتى Store ما يعتمد على Firebase.
+  static Future<void> Function()? onSignedIn;
+
+  Future<void> registerDevice(String token, String platform) async {
+    try {
+      await backend.registerDevice(token, platform);
+    } catch (_) {}
+  }
 
   Future<String> shareLink(Booking b) => _guard(() => backend.createShareLink(b));
   Stream<List<ChatMessage>> messages(String bookingId) => backend.messages(bookingId);

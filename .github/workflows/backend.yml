@@ -17,7 +17,7 @@ jobs:
           version: latest
 
       - name: Start local Supabase (applies migrations)
-        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta,realtime
+        run: supabase start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta,realtime
 
       - name: Run database tests
         shell: bash
@@ -35,7 +35,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: End-to-end API test (Auth + REST + Storage)
+      - name: Serve edge functions
+        run: |
+          printf 'PUSH_SECRET=test-push-secret\nADMIN_ORIGINS=http://127.0.0.1:8080\n' > supabase/functions/.env
+          nohup supabase functions serve --env-file supabase/functions/.env > functions.log 2>&1 &
+          for i in $(seq 1 30); do curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:54321/functions/v1/push | grep -qv '^5\|^000' && break; sleep 3; done
+          tail -5 functions.log
+
+      - name: End-to-end API test (Auth + REST + Storage + Functions)
         shell: bash
         run: |
           eval "$(supabase status -o env | sed 's/^/export /')"
@@ -45,6 +52,7 @@ jobs:
           status=$?
           cat e2e.log
           if [ $status -ne 0 ]; then
+            tail -30 functions.log
             msg=$(grep -E "✗|Error" e2e.log | head -60 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error::$msg"
             exit 1

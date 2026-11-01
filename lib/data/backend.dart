@@ -51,4 +51,5 @@ abstract class Backend {
   Future<void> sendMessage(String bookingId, String body);
   Future<List<AppNotification>> notifications();
   Future<void> markNotificationsRead();
+  Future<void> registerDevice(String token, String platform);
 }

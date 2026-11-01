@@ -5,12 +5,14 @@ import 'core/theme.dart';
 import 'screens/splash.dart';
 import 'data/store.dart';
 import 'core/config.dart';
+import 'core/push.dart';
 import 'data/demo_backend.dart';
 import 'data/supabase_backend.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light));
+  Store.onSignedIn = Push.start;
   // Supabase إذا في مفاتيح، غير هيك الوضع التجريبي
   try {
     await Store.i.start(AppConfig.live ? SupabaseBackend() : DemoBackend());

@@ -344,6 +344,9 @@ class SupabaseBackend implements Backend {
   @override
   Future<void> markNotificationsRead() => _rpc('mark_notifications_read');
 
+  @override
+  Future<void> registerDevice(String token, String platform) => _rpc('register_device', {'p_token': token, 'p_platform': platform});
+
   // ── تحويل البيانات ─────────────────────────────────────────────────
   static String _cid(String name) => cityIds[name] ?? (throw const AppException('INVALID_ROUTE', 'الطريق مو صحيح، تأكد من المدن والوقفات'));
   static double _num(dynamic v) => v == null ? 0 : (v as num).toDouble();

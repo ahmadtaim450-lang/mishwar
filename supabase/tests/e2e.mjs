@@ -103,5 +103,19 @@ must(await rider.c.rpc('cancel_booking', { p_booking: req.id, p_reason: 'تغي�
 ok((await anon.rpc('get_shared_trip', { p_token: token })).data === null, 'الرابط وقف بعد الإلغاء');
 ok((await driver.c.rpc('my_driver_trips')).data?.[0]?.seats_available === 3, 'المقاعد رجعت');
 
+console.log('▶ دوال السيرفر (Edge Functions)');
+const fn = (name, body, headers = {}) => fetch(`${API_URL}/functions/v1/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+const noteId = (await service.from('notifications').select('id').limit(1).single()).data?.id;
+ok((await fn('push', { notification_id: noteId })).status === 401, 'push بلا كلمة السر مرفوض');
+const pushRes = await fn('push', { notification_id: noteId }, { 'x-push-secret': process.env.PUSH_SECRET || 'test-push-secret' });
+ok(pushRes.status === 200, `push بكلمة السر بيشتغل (${pushRes.status})`);
+must(await stranger.c.rpc('request_account_deletion'), 'طلب حذف حساب');
+const tok = async (u) => (await u.c.auth.getSession()).data.session.access_token;
+ok((await fn('admin-delete-user', { user_id: stranger.id }, { Authorization: `Bearer ${await tok(rider)}` })).status === 403, 'غير المدير ما بيقدر يحذف');
+const del = await fn('admin-delete-user', { user_id: stranger.id }, { Authorization: `Bearer ${await tok(admin)}` });
+ok(del.status === 200, `المدير حذف الحساب (${del.status})`);
+ok((await service.from('profiles').select('id').eq('id', stranger.id)).data?.length === 0, 'الملف انحذف مع المستخدم');
+ok((await fn('admin-delete-user', { user_id: rider.id }, { Authorization: `Bearer ${await tok(admin)}` })).status === 409, 'ما بينحذف حساب ما طلب الحذف');
+
 console.log(fails ? `✗ ${fails} فشل` : '✓ الاختبار الشامل نجح');
 process.exit(fails ? 1 : 0);
