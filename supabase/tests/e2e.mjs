@@ -58,6 +58,7 @@ denied(await rider.c.rpc('admin_review_application', { p_application: appId, p_s
 must(await admin.c.rpc('admin_review_application', { p_application: appId, p_status: 'interview', p_note: 'جيب الأوراق', p_interview_at: interview, p_place: 'نقطة مشوار' }), 'تحديد مقابلة');
 must(await admin.c.rpc('admin_review_application', { p_application: appId, p_status: 'approved', p_note: null, p_interview_at: null, p_place: null }), 'تفعيل السائق');
 const stats = must(await admin.c.rpc('admin_stats'), 'أرقام لوحة الإدارة');
+must(await admin.c.from('trips').select('id, driver:profiles!trips_driver_id_fkey(full_name), bookings(status, seats)').limit(5), 'جدول الرحلات بلوحة الإدارة');
 ok(stats?.drivers >= 1 && stats?.users >= 4, 'الأرقام منطقية');
 denied(await rider.c.rpc('admin_stats'), 'FORBIDDEN', 'الراكب ما بيشوف أرقام الإدارة');
 const prof = must(await driver.c.rpc('my_profile'), 'ملف السائق');

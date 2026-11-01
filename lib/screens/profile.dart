@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/location.dart';
+import '../core/config.dart';
 import '../core/theme.dart';
 import 'driver_join.dart';
 import '../data/store.dart';
@@ -460,13 +461,11 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _n = [true, true, true, false];
   @override
   Widget build(BuildContext context) => _Simple('الإعدادات', [
         Container(height: 150, alignment: Alignment.center, child: const Illus('settings', height: 150)),
-        Group(title: 'الإشعارات', [
-          for (final (i, t) in const [(0, 'طلبات الحجز'), (1, 'الرسائل'), (2, 'تذكير قبل الرحلة'), (3, 'عروض وأخبار')])
-            SwitchListTile(contentPadding: EdgeInsets.zero, value: _n[i], activeColor: C.primary, title: Text(t, style: T.label), onChanged: (v) => setState(() => _n[i] = v)),
+        Group(title: 'الإشعارات', const [
+          RowItem(Icons.notifications_active_outlined, 'إشعارات الحجز والرسائل', sub: 'بتوصلك على الموبايل. فيك توقفها من إعدادات الجهاز › التطبيقات › مشوار'),
         ]),
         const SizedBox(height: 12),
         Group(title: 'الحساب', [
@@ -549,42 +548,76 @@ class TermsScreen extends StatelessWidget {
       ]);
 }
 
-class HelpScreen extends StatelessWidget {
+class HelpScreen extends StatefulWidget {
   const HelpScreen();
   @override
-  Widget build(BuildContext context) => _Simple('المساعدة', [
-        const Center(child: Illus('help', height: 160)),
-        const TextField(style: TextStyle(fontFamily: kFont), decoration: InputDecoration(hintText: 'دوّر على سؤال', prefixIcon: Icon(Icons.search_rounded, color: C.primary))),
-        const SizedBox(height: 12),
-        for (final (q, a) in const [
-          ('كيف بدفع للسائق؟', 'كاش مباشرة للسائق. لا تحوّل أي مبلغ قبل اللقاء.'),
-          ('شو بصير إذا السائق ألغى؟', 'بيوصلك إشعار فوراً، ومنقترح عليك رحلات بديلة.'),
-          ('كيف بوثّق هويتي؟', 'من حسابي ← وثّق هويتك، بتصوّر الهوية وسيلفي.'),
-          ('كيف بتشتغل الرحلات النسائية؟', 'السائقة امرأة موثّقة والركاب نساء فقط، والرحلات العائلية.'),
-        ])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-              child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(title: Text(q, style: T.label), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14), children: [Text(a, style: T.body)]),
-              ),
+  State<HelpScreen> createState() => _HelpScreenState();
+}
+
+class _HelpScreenState extends State<HelpScreen> {
+  String _q = '';
+  static const _faq = [
+    ('كيف بدفع للسائق؟', 'كاش مباشرة للسائق بعد اللقاء. لا تحوّل أي مبلغ قبل ما تشوف السائق والسيارة.'),
+    ('كيف بعرف إنو هاد السائق الصح؟', 'طابق رقم السيارة ولونها مع تذكرتك، واسأل السائق عن رمز الرحلة (4 أرقام). إذا ما عرفو لا تطلع وبلّغنا.'),
+    ('شو بصير إذا السائق ألغى؟', 'بيوصلك إشعار فوراً، والمقعد بيرجع. دوّر على رحلة تانية بنفس الطريق.'),
+    ('كيف بصير سائق؟', 'من زر النشر بالنص أو من حسابي › صير سائق موثّق. بتقدّم أوراقك وبتعمل مقابلة وفحص سيارة.'),
+    ('كيف بتشتغل الرحلات النسائية؟', 'السائقة امرأة موثّقة والركاب نساء بس. والرحلات العائلية للعائلات المسافرة سوا.'),
+    ('فيني احجز لجزء من الطريق؟', 'إي. إذا الرحلة بتمرق بمدينتك بتطلعلك بالبحث، والسعر والوقت محسوبين حسب المسافة.'),
+    ('كيف بشارك رحلتي مع أهلي؟', 'من التذكرة › شارك موقعك مع أهلك. بيوصلهن رابط بيفتح بالمتصفح وبيشوفوا وينك لحتى توصل.'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final q = norm(_q);
+    final items = _faq.where((f) => q.isEmpty || norm(f.$1).contains(q) || norm(f.$2).contains(q)).toList();
+    return _Simple('المساعدة', [
+      const Center(child: Illus('help', height: 160)),
+      TextField(onChanged: (v) => setState(() => _q = v), style: const TextStyle(fontFamily: kFont), decoration: const InputDecoration(hintText: 'دوّر على سؤال', prefixIcon: Icon(Icons.search_rounded, color: C.primary))),
+      const SizedBox(height: 12),
+      if (items.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('ما لقينا سؤال متل هيك. تواصل معنا تحت.', style: T.body)),
+      for (final (q, a) in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Container(
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+            child: Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(title: Text(q, style: T.label), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14), children: [Text(a, style: T.body)]),
             ),
           ),
-      ], bottom: Btn('تواصل مع الدعم', kind: BtnKind.outline, icon: Icons.chat_bubble_outline_rounded, onTap: () => toast(context, 'فريق الدعم رح يتواصل معك قريباً')));
+        ),
+    ], bottom: Btn('تواصل مع الدعم', kind: BtnKind.outline, icon: Icons.chat_bubble_outline_rounded, onTap: () async {
+      const phone = AppConfig.supportPhone;
+      if (phone.isEmpty) {
+        toast(context, 'رقم الدعم لسا ما انضاف');
+        return;
+      }
+      final wa = Uri.parse('https://wa.me/${phone.replaceAll(RegExp(r'[^0-9]'), '')}');
+      if (!await launchUrl(wa, mode: LaunchMode.externalApplication) && context.mounted) toast(context, phone);
+    }));
+  }
 }
 
 class InviteScreen extends StatelessWidget {
   const InviteScreen();
+  static const _link = 'https://ahmadtaim450-lang.github.io/mishwar/';
   @override
   Widget build(BuildContext context) => _Simple('ادعُ أصحابك', [
         const Floaty(child: Illus('invite_gift', height: 220)),
         const Text('كل ما زاد الأعضاء، زادت الرحلات', style: T.h2),
-        const Text('شارك مشوار مع أصحابك، ولما يعملوا أول رحلة بتاخد شارة "سفير مشوار".', style: T.body),
+        const Text('شارك مشوار مع أصحابك وأهلك اللي بيسافروا بين المدن.', style: T.body),
         const SizedBox(height: 16),
-        CardBox(child: Row(children: [const Expanded(child: Text('IHAB-2026', textDirection: TextDirection.ltr, style: TextStyle(fontFamily: kFont, fontSize: 22, letterSpacing: 2))), TextButton(onPressed: () => toast(context, 'انتسخ الكود'), child: const Text('نسخ', style: TextStyle(fontFamily: kFont)))])),
-      ], bottom: Btn('شارك الدعوة', icon: Icons.share_rounded, onTap: () => toast(context, 'قريباً')));
+        CardBox(child: Row(children: [
+          const Expanded(child: Text(_link, textDirection: TextDirection.ltr, style: TextStyle(fontFamily: kFont, fontSize: 14))),
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(const ClipboardData(text: _link));
+              if (context.mounted) toast(context, 'انتسخ الرابط');
+            },
+            child: const Text('نسخ', style: TextStyle(fontFamily: kFont)),
+          ),
+        ])),
+      ], bottom: Btn('شارك الدعوة', icon: Icons.share_rounded, onTap: () => Share.share('جرّب مشوار: رحلات آمنة بين المدن السورية مع سائقين موثّقين\\n$_link', subject: 'مشوار')));
 }
 
 class PlusScreen extends StatelessWidget {
@@ -602,13 +635,7 @@ class PlusScreen extends StatelessWidget {
             for (final (i, t) in const [(Icons.bolt_rounded, 'رحلاتك بأول نتائج البحث'), (Icons.repeat_rounded, 'رحلات متكررة بضغطة'), (Icons.star_rounded, 'شارة سائق مميز'), (Icons.insights_rounded, 'تقارير شهرية')])
               Padding(padding: const EdgeInsets.only(bottom: 14), child: Row(children: [Icon(i, color: C.yellow), const SizedBox(width: 12), Text(t, style: const TextStyle(fontFamily: kFont, color: Colors.white, fontSize: 16))])),
             const SizedBox(height: 10),
-            Press(
-              onTap: () {
-                toast(context, 'رح نبلّغك لما ينطلق');
-                Navigator.pop(context);
-              },
-              child: Container(height: 56, decoration: BoxDecoration(color: C.yellow, borderRadius: BorderRadius.circular(18)), alignment: Alignment.center, child: const Text('بلّغني لما ينطلق', style: TextStyle(fontFamily: kFont, color: C.dark, fontSize: 17))),
-            ),
+            Container(height: 56, decoration: BoxDecoration(color: C.yellow.withValues(alpha: .25), borderRadius: BorderRadius.circular(18)), alignment: Alignment.center, child: const Text('قريباً', style: TextStyle(fontFamily: kFont, color: C.yellow, fontSize: 17))),
           ]),
         ),
       );

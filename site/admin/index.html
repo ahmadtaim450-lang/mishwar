@@ -116,7 +116,7 @@
   }
 
   function shell(counts) {
-    var tabs = [['overview', 'نظرة عامة', null], ['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null]];
+    var tabs = [['overview', 'نظرة عامة', null], ['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null], ['trips', 'الرحلات', null]];
     if (me.role === 'admin') { tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
     return [
       el('header', {}, [el('h1', { text: 'مشوار · الإدارة' }), el('span', { 'class': 'who', text: me.full_name + ' · ' + (me.role === 'admin' ? 'مدير' : 'مشرف') }),
@@ -149,7 +149,7 @@
       sb.from('profiles').select('id', { count: 'exact', head: true }).not('deletion_requested_at', 'is', null)
     ]).then(function (r) {
       app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0, deletions: r[2].count || 0 }));
-      ({ overview: overviewView, apps: appsView, reports: reportsView, drivers: driversView, deletions: deletionsView, audit: auditView })[tab]();
+      ({ overview: overviewView, trips: tripsView, apps: appsView, reports: reportsView, drivers: driversView, deletions: deletionsView, audit: auditView })[tab]();
     });
   }
   function main() { return document.getElementById('main'); }
@@ -170,6 +170,28 @@
         d.top_routes.length ? d.top_routes.map(function (x) { return el('div', { style: 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1.5px solid #EEF1F1' }, [el('span', { text: x.route }), el('span', { 'class': 'badge', text: x.trips + ' رحلة' })]); })
           : [el('div', { 'class': 'muted', text: 'لسا ما في رحلات' })])));
     });
+  }
+
+  // ── الرحلات (للمتابعة وحل الخلافات) ──
+  function tripsView() {
+    var box = el('div', { 'class': 'card' });
+    main().replaceChildren(box);
+    sb.from('trips').select('id, from_city, to_city, departure_at, status, seats_total, seats_available, price_syp, kind, driver:profiles!trips_driver_id_fkey(full_name), bookings(status, seats)')
+      .gte('departure_at', new Date(Date.now() - 2 * 86400e3).toISOString()).order('departure_at').limit(300).then(function (r) {
+        if (r.error) return err(r.error);
+        if (!r.data.length) return box.appendChild(el('div', { 'class': 'empty', text: 'ما في رحلات قريبة' }));
+        var KIND = { men: 'رجال', women: 'نسائية', family: 'عائلية' };
+        var ST = { scheduled: ['مجدولة', ''], in_progress: ['عالطريق', 'warn'], completed: ['خلصت', 'ok'], cancelled: ['ملغاة', 'bad'] };
+        box.appendChild(el('table', {}, [el('thead', {}, [el('tr', {}, ['الموعد', 'الطريق', 'السائق', 'النوع', 'المقاعد', 'الحجوزات', 'الحالة'].map(function (h) { return el('th', { text: h }); }))]),
+          el('tbody', {}, r.data.map(function (t) {
+            var active = (t.bookings || []).filter(function (b) { return b.status === 'confirmed' || b.status === 'pending'; });
+            var st = ST[t.status] || [t.status, ''];
+            return el('tr', {}, [el('td', { text: fmt(t.departure_at) }), el('td', { text: (CITY[t.from_city] || t.from_city) + ' ← ' + (CITY[t.to_city] || t.to_city) }),
+              el('td', { text: t.driver ? t.driver.full_name : '' }), el('td', { text: KIND[t.kind] || t.kind }),
+              el('td', { text: (t.seats_total - t.seats_available) + '/' + t.seats_total }), el('td', { text: String(active.length) }),
+              el('td', {}, [el('span', { 'class': 'badge ' + st[1], text: st[0] })])]);
+          }))]));
+      });
   }
 
   // ── طلبات السائقين ──
