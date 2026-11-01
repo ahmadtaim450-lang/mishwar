@@ -310,6 +310,21 @@ select t.ok((select count(*) from public.audit_log) > 10, 'admin reads audit');
 select public.admin_set_driver_status('00000000-0000-0000-0000-00000000000d', 'approved', 'انحلّت المشكلة');
 select t.ok((select driver_status from public.profiles where id = '00000000-0000-0000-0000-00000000000d') = 'approved', 'admin reinstated driver');
 
+\echo '▶ الصيانة الدورية'
+reset role;
+-- رحلة منسية: وصلت من 13 ساعة ولسا مجدولة، وفيها طلب معلّق وحجز مؤكد
+update public.trips set status = 'scheduled', departure_at = now() - interval '18 hours', arrival_at = now() - interval '13 hours', seats_available = 3
+where id = (select v from t.ids where k = 'trip2');
+update public.profiles set driver_status = 'approved', suspended_at = null where id = '00000000-0000-0000-0000-00000000000d';
+insert into public.bookings (trip_id, rider_id, seats, status, pin) values
+  ((select v from t.ids where k = 'trip2'), '00000000-0000-0000-0000-000000000001', 1, 'confirmed', '1111'),
+  ((select v from t.ids where k = 'trip2'), '00000000-0000-0000-0000-000000000002', 1, 'pending', '2222');
+select t.ok((public.maintenance() ->> 'trips_completed')::int >= 1, 'forgotten trip auto-completed');
+select t.ok((select status from public.trips where id = (select v from t.ids where k = 'trip2')) = 'completed', 'trip completed');
+select t.ok((select count(*) from public.bookings where trip_id = (select v from t.ids where k = 'trip2') and status = 'completed') = 1, 'confirmed → completed (can review)');
+select t.ok((select count(*) from public.bookings where trip_id = (select v from t.ids where k = 'trip2') and status = 'pending') = 0, 'pending expired');
+select t.ok((public.maintenance() ->> 'trips_completed')::int = 0, 'idempotent');
+
 \echo '▶ التخزين: كل واحد بمجلدو'
 reset role;
 select t.ok(exists (select 1 from storage.buckets where id = 'driver-docs' and not public), 'private docs bucket');
