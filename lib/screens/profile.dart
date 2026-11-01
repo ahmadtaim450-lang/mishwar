@@ -326,14 +326,18 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: C.sos,
         body: SafeArea(
-          child: Padding(
+          child: LayoutBuilder(builder: (context, box) => SingleChildScrollView(
+           child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: IntrinsicHeight(
+             child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(children: [
               Align(alignment: AlignmentDirectional.centerStart, child: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30))),
               const Spacer(),
               SizedBox(
-                width: 240,
-                height: 240,
+                width: box.maxHeight < 640 ? 200 : 240,
+                height: box.maxHeight < 640 ? 200 : 240,
                 child: AnimatedBuilder(
                   animation: _c,
                   builder: (_, __) => Stack(alignment: Alignment.center, children: [
@@ -365,6 +369,9 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
               ]),
             ]),
           ),
+            ),
+           ),
+          )),
         ),
       );
 }

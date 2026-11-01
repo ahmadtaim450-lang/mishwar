@@ -226,7 +226,7 @@ class _DriverScreenState extends State<DriverScreen> {
                   for (final s in const ['الهوية الشخصية', 'شهادة السواقة', 'لا حكم عليه', 'أوراق السيارة وفحصها', 'مقابلة شخصية'])
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(children: [const Icon(Icons.check_rounded, size: 18, color: Color(0xFF1E9E5A)), const SizedBox(width: 8), Text(s, style: T.body)]),
+                      child: Row(children: [const Icon(Icons.check_rounded, size: 18, color: Color(0xFF1E9E5A)), const SizedBox(width: 8), Expanded(child: Text(s, style: T.body))]),
                     ),
                 ]),
               ),
