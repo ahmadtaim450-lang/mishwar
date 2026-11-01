@@ -110,7 +110,7 @@ jobs:
           status=$?
           tail -5 test.log
           if [ $status -ne 0 ]; then
-            msg=$(grep -E "\[E\]|Expected:|Actual:|Error:|overflowed|(Row|Column|Flex|Text)[A-Za-z]*:file:///.*lib/|test.dart:[0-9]+" test.log | grep -v "package:flutter/\|widget_test.dart line\|══" | awk '!seen[$0]++' | head -250 | sed ':a;N;$!ba;s/\n/%0A/g')
+            msg=$(grep -E -A3 "was thrown|\[E\]|Expected:|Actual:|Error:|overflowed|(Row|Column|Flex|Text)[A-Za-z]*:file:///.*lib/" test.log | grep -v "widget_test.dart line\|══\|^--$\|^#[0-9]" | awk '!seen[$0]++' | head -250 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error::$msg"
             exit 1
           fi
