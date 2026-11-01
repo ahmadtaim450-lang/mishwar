@@ -1,10 +1,20 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/store.dart';
+import '../data/location.dart';
+import '../core/errors.dart';
 import '../widgets/common.dart';
 import 'shell.dart';
 import 'splash.dart';
 import 'profile.dart';
+
+/// معلومات التسجيل بين الشاشات.
+class _Draft {
+  static String phone = '';
+  static String first = '';
+  static String last = '';
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen();
@@ -72,7 +82,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 const SizedBox(height: 16),
                 const InfoNote('رقمك ما بيظهر لحدا قبل ما ينقبل الحجز.', icon: Icons.verified_user_outlined),
                 const SizedBox(height: 28),
-                Btn('متابعة', onTap: () => go(context, const OtpScreen())),
+                AsyncBtn('متابعة', busyLabel: 'عم نبعت الرمز...', onTap: () async {
+                  final phone = normalizePhone(_phone.text);
+                  await Store.i.sendOtp(phone);
+                  _Draft.phone = phone;
+                  if (context.mounted) go(context, OtpScreen(phone: phone));
+                }),
+                if (!Store.i.live) ...[
+                  const SizedBox(height: 10),
+                  const DemoBanner(),
+                ],
                 const SizedBox(height: 12),
                 Center(
                   child: Wrap(alignment: WrapAlignment.center, children: [
@@ -90,13 +109,64 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 }
 
 class OtpScreen extends StatefulWidget {
-  const OtpScreen();
+  final String phone;
+  const OtpScreen({required this.phone});
   @override
   State<OtpScreen> createState() => _OtpScreenState();
 }
 
 class _OtpScreenState extends State<OtpScreen> {
+  static const _len = 6;
+  final _ctl = TextEditingController();
   String _code = '';
+  bool _busy = false;
+  int _wait = 60;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+  }
+
+  void _tick() {
+    _timer?.cancel();
+    setState(() => _wait = 60);
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => _wait--);
+      if (_wait <= 0) t.cancel();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    if (_code.length != _len || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final complete = await Store.i.verifyOtp(widget.phone, _code);
+      if (!mounted) return;
+      if (complete) {
+        Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const AppShell()), (_) => false);
+      } else {
+        go(context, const SignupNameScreen());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      toast(context, AppException.from(e).message);
+      _ctl.clear();
+      setState(() => _code = '');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: const TopBar(),
@@ -105,25 +175,25 @@ class _OtpScreenState extends State<OtpScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Enter(child: Text('دخّل رمز التحقق', style: T.h1)),
             const SizedBox(height: 6),
-            const Enter(delay: 100, child: Text('بعتنالك رمز من 4 أرقام برسالة.', style: T.body)),
+            Enter(delay: 100, child: Text('بعتنالك رمز من 6 أرقام على ${widget.phone}', style: T.body, textDirection: TextDirection.rtl)),
             const SizedBox(height: 28),
             Directionality(
               textDirection: TextDirection.ltr,
               child: Stack(children: [
                 Row(children: [
-                  for (var i = 0; i < 4; i++)
+                  for (var i = 0; i < _len; i++)
                     Expanded(
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.symmetric(horizontal: 6),
-                        height: 72,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        height: 64,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: i == _code.length ? C.yellow : (i < _code.length ? C.primary : C.border), width: 2),
                         ),
                         alignment: Alignment.center,
-                        child: Text(i < _code.length ? _code[i] : '', style: const TextStyle(fontFamily: kFont, fontSize: 30, color: C.dark)),
+                        child: Text(i < _code.length ? _code[i] : '', style: const TextStyle(fontFamily: kFont, fontSize: 28, color: C.dark)),
                       ),
                     ),
                 ]),
@@ -131,12 +201,15 @@ class _OtpScreenState extends State<OtpScreen> {
                   child: Opacity(
                     opacity: 0,
                     child: TextField(
+                      controller: _ctl,
                       autofocus: true,
+                      enabled: !_busy,
                       keyboardType: TextInputType.number,
-                      maxLength: 4,
+                      autofillHints: const [AutofillHints.oneTimeCode],
+                      maxLength: _len,
                       onChanged: (v) {
-                        setState(() => _code = v);
-                        if (v.length == 4) go(context, const SignupNameScreen());
+                        setState(() => _code = v.replaceAll(RegExp(r'[^0-9]'), ''));
+                        if (_code.length == _len) _verify();
                       },
                     ),
                   ),
@@ -144,9 +217,19 @@ class _OtpScreenState extends State<OtpScreen> {
               ]),
             ),
             const SizedBox(height: 20),
-            const Center(child: Text('ما وصلك؟ إعادة الإرسال بعد 0:42', style: T.small)),
+            Center(
+              child: _wait > 0
+                  ? Text('ما وصلك؟ فيك تطلب رمز جديد بعد 0:${_wait.toString().padLeft(2, '0')}', style: T.small)
+                  : TextButton(
+                      onPressed: () async {
+                        if (await attempt(context, () => Store.i.sendOtp(widget.phone))) _tick();
+                      },
+                      child: const Text('ابعتلي رمز جديد', style: TextStyle(fontFamily: kFont, color: C.primary)),
+                    ),
+            ),
+            if (!Store.i.live) const Padding(padding: EdgeInsets.only(top: 8), child: Center(child: Text('بالنسخة التجريبية أي 6 أرقام بتمشي', style: T.small))),
             const Spacer(),
-            Btn('تأكيد', onTap: () => go(context, const SignupNameScreen())),
+            _busy ? const Center(child: CircularProgressIndicator(color: C.primary)) : Btn('تأكيد', onTap: _code.length == _len ? _verify : null),
           ]),
         ),
       );
@@ -158,7 +241,7 @@ class _SignupFrame extends StatelessWidget {
   final String? sub;
   final List<Widget> children;
   final String cta;
-  final VoidCallback onNext;
+  final Future<void> Function() onNext;
   const _SignupFrame({required this.step, required this.title, this.sub, required this.children, this.cta = 'متابعة', required this.onNext});
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -173,29 +256,50 @@ class _SignupFrame extends StatelessWidget {
               ...children,
             ]),
           ),
-          Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 24), child: Btn(cta, onTap: onNext)),
+          Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 24), child: AsyncBtn(cta, onTap: onNext)),
         ]),
       );
 }
 
-class SignupNameScreen extends StatelessWidget {
+class SignupNameScreen extends StatefulWidget {
   const SignupNameScreen();
+  @override
+  State<SignupNameScreen> createState() => _SignupNameScreenState();
+}
+
+class _SignupNameScreenState extends State<SignupNameScreen> {
+  final _first = TextEditingController(text: _Draft.first);
+  final _last = TextEditingController(text: _Draft.last);
+  @override
+  void dispose() {
+    _first.dispose();
+    _last.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => _SignupFrame(
         step: 1,
         title: 'شو اسمك؟',
         sub: 'هيك رح يشوفك السائقين والركاب.',
-        onNext: () => go(context, const SignupGenderScreen()),
-        children: const [
-          Text('الاسم الأول', style: T.label),
-          SizedBox(height: 8),
-          TextField(style: TextStyle(fontFamily: kFont, fontSize: 17)),
-          SizedBox(height: 16),
-          Text('الكنية', style: T.label),
-          SizedBox(height: 8),
-          TextField(style: TextStyle(fontFamily: kFont, fontSize: 17), decoration: InputDecoration(hintText: 'اختياري')),
-          SizedBox(height: 16),
-          InfoNote('استخدم اسمك الحقيقي، الحسابات بأسماء وهمية بتنوقف.'),
+        onNext: () async {
+          final f = _first.text.trim(), l = _last.text.trim();
+          if (f.length < 2) throw const AppException('INVALID_NAME', 'اكتب اسمك الأول');
+          if ('$f $l'.trim().length < 3) throw AppException('INVALID_NAME', AppException.messages['INVALID_NAME']!);
+          _Draft.first = f;
+          _Draft.last = l;
+          go(context, const SignupGenderScreen());
+        },
+        children: [
+          const Text('الاسم الأول', style: T.label),
+          const SizedBox(height: 8),
+          TextField(controller: _first, textInputAction: TextInputAction.next, maxLength: 40, style: const TextStyle(fontFamily: kFont, fontSize: 17), decoration: const InputDecoration(counterText: '')),
+          const SizedBox(height: 16),
+          const Text('الكنية', style: T.label),
+          const SizedBox(height: 8),
+          TextField(controller: _last, maxLength: 40, style: const TextStyle(fontFamily: kFont, fontSize: 17), decoration: const InputDecoration(hintText: 'اختياري', counterText: '')),
+          const SizedBox(height: 16),
+          const InfoNote('استخدم اسمك الحقيقي، الحسابات بأسماء وهمية بتنوقف.'),
         ],
       );
 }
@@ -212,16 +316,16 @@ class _SignupGenderScreenState extends State<SignupGenderScreen> {
   Widget build(BuildContext context) => _SignupFrame(
         step: 2,
         title: 'عرّفنا عليك أكتر',
-        onNext: () {
-          Store.i.setFemale(_g == 1);
-          go(context, SafeModeScreen(female: _g == 1));
+        onNext: () async {
+          await Store.i.completeProfile('${_Draft.first} ${_Draft.last}'.trim(), _g == 1);
+          if (context.mounted) go(context, SafeModeScreen(female: _g == 1));
         },
         children: [
           const Text('الجنس', style: T.label),
           const SizedBox(height: 8),
           ChoiceCards(options: const [('ذكر', ''), ('أنثى', '')], selected: {_g}, onTap: (i) => setState(() => _g = i)),
           const SizedBox(height: 8),
-          const InfoNote('منستخدمها لنعرضلك الرحلات المناسبة إلك، وما بتنعرض عملفك.', icon: Icons.lock_outline_rounded),
+          const InfoNote('منستخدمها لنعرضلك الرحلات المناسبة إلك، وما بتتغيّر بعد التسجيل.', icon: Icons.lock_outline_rounded),
         ],
       );
 }
@@ -240,7 +344,7 @@ class _SafeModeScreenState extends State<SafeModeScreen> {
         step: 3,
         title: 'كيف بتحب تسافر؟',
         sub: 'بنعرضلك بس الرحلات اللي بتناسبك، وفيك تغيّرها بأي وقت.',
-        onNext: () => go(context, const SignupPhotoScreen()),
+        onNext: () async => go(context, const SignupPhotoScreen()),
         children: [
           ChoiceCards(
             options: widget.female
@@ -262,7 +366,7 @@ class SignupPhotoScreen extends StatelessWidget {
         title: 'ضيف صورة لوجهك',
         sub: 'الملفات اللي فيها صورة واضحة بتنقبل حجوزاتها أسرع.',
         cta: 'التقط صورة',
-        onNext: () => go(context, const PermissionsScreen()),
+        onNext: () async => go(context, const PermissionsScreen()),
         children: [
           Center(
             child: Floaty(
@@ -291,7 +395,11 @@ class PermissionsScreen extends StatelessWidget {
   Widget build(BuildContext context) => _SignupFrame(
         step: 5,
         title: 'خلّي التطبيق يساعدك',
-        onNext: () => goReplace(context, const WelcomeScreen()),
+        cta: 'سماح ومتابعة',
+        onNext: () async {
+          await myPosition();
+          if (context.mounted) goReplace(context, const WelcomeScreen());
+        },
         children: [
           for (final (img, t, s) in const [
             ('perm_location', 'الموقع', 'لنقترح عليك أقرب نقطة انطلاق، ولمشاركة الرحلة مع أهلك.'),
@@ -323,12 +431,12 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(),
               const Floaty(child: Illus('welcome', height: 300)),
               const SizedBox(height: 16),
-              const Enter(child: Text('أهلا فيك يا إيهاب!', style: TextStyle(fontFamily: kFont, fontSize: 40, color: Colors.white))),
+              Enter(child: Text('أهلا فيك يا ${Store.i.name}!', textAlign: TextAlign.center, style: const TextStyle(fontFamily: kFont, fontSize: 38, color: Colors.white))),
               const Enter(delay: 120, child: Text('حسابك جاهز. لوين أول مشوار؟', style: TextStyle(fontFamily: kFont, fontSize: 17, color: Colors.white))),
               const Spacer(),
-              Btn('دوّر على رحلة', kind: BtnKind.white, icon: Icons.search_rounded, onTap: () => goReplace(context, const AppShell())),
+              Btn('دوّر على رحلة', kind: BtnKind.white, icon: Icons.search_rounded, onTap: () => Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const AppShell()), (_) => false)),
               const SizedBox(height: 10),
-              Btn('انشر رحلة', kind: BtnKind.dark, icon: Icons.add_circle_outline_rounded, onTap: () => goReplace(context, const AppShell(initial: 2))),
+              Btn('صير سائق موثّق', kind: BtnKind.dark, icon: Icons.add_circle_outline_rounded, onTap: () => Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const AppShell(initial: 2)), (_) => false)),
             ]),
           ),
         ),

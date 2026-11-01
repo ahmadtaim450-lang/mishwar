@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
+import '../core/errors.dart';
 
 /// صورة من assets/images مع بديل أنيق إذا ما كانت موجودة.
 class Illus extends StatelessWidget {
@@ -574,4 +575,95 @@ class _RoundChatPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RoundChatPainter o) => o.color != color || o.filled != filled;
+}
+
+/// بيشغّل عملية، وإذا فشلت بيعرض رسالة مفهومة. بيرجّع true إذا نجحت.
+Future<bool> attempt(BuildContext context, Future<void> Function() f) async {
+  try {
+    await f();
+    return true;
+  } catch (e) {
+    if (context.mounted) toast(context, AppException.from(e).message);
+    return false;
+  }
+}
+
+/// زر بيعرض تحميل وقت العملية، وما بينضغط مرتين.
+class AsyncBtn extends StatefulWidget {
+  final String label;
+  final Future<void> Function()? onTap;
+  final BtnKind kind;
+  final IconData? icon;
+  final String? busyLabel;
+  const AsyncBtn(this.label, {super.key, this.onTap, this.kind = BtnKind.primary, this.icon, this.busyLabel});
+  @override
+  State<AsyncBtn> createState() => _AsyncBtnState();
+}
+
+class _AsyncBtnState extends State<AsyncBtn> {
+  bool _busy = false;
+  @override
+  Widget build(BuildContext context) {
+    if (_busy) {
+      final light = widget.kind == BtnKind.primary || widget.kind == BtnKind.dark;
+      return Container(
+        height: 56,
+        decoration: BoxDecoration(color: light ? (widget.kind == BtnKind.dark ? C.dark : C.primary) : Colors.white, borderRadius: BorderRadius.circular(18)),
+        alignment: Alignment.center,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: light ? Colors.white : C.primary)),
+          const SizedBox(width: 10),
+          Text(widget.busyLabel ?? 'لحظة...', style: TextStyle(fontFamily: kFont, fontSize: 16, color: light ? Colors.white : C.dark)),
+        ]),
+      );
+    }
+    return Btn(widget.label, kind: widget.kind, icon: widget.icon, onTap: widget.onTap == null
+        ? null
+        : () async {
+            setState(() => _busy = true);
+            await attempt(context, widget.onTap!);
+            if (mounted) setState(() => _busy = false);
+          });
+  }
+}
+
+/// حالة خطأ مع زر إعادة المحاولة.
+class ErrorView extends StatelessWidget {
+  final Object error;
+  final VoidCallback onRetry;
+  const ErrorView(this.error, {super.key, required this.onRetry});
+  @override
+  Widget build(BuildContext context) {
+    final e = AppException.from(error);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(e.code == 'NETWORK' ? Icons.wifi_off_rounded : Icons.error_outline_rounded, size: 56, color: C.muted),
+          const SizedBox(height: 12),
+          Text(e.code == 'NETWORK' ? 'ما في نت' : 'ما زبطت', style: T.h2, textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Text(e.message, style: T.body, textAlign: TextAlign.center),
+          const SizedBox(height: 18),
+          SizedBox(width: 200, child: Btn('جرّب مرة تانية', icon: Icons.refresh_rounded, onTap: onRetry)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// شريط صغير بيوضح إنو التطبيق بالوضع التجريبي.
+class DemoBanner extends StatelessWidget {
+  const DemoBanner({super.key});
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: C.warnBg, borderRadius: BorderRadius.circular(12)),
+        child: const Row(children: [
+          Icon(Icons.science_outlined, size: 18, color: C.warn),
+          SizedBox(width: 8),
+          Expanded(child: Text('نسخة تجريبية: الرحلات والحجوزات للتجربة بس', style: TextStyle(fontFamily: kFont, fontSize: 12.5, color: C.warn))),
+        ]),
+      );
 }

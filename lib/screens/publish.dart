@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../data/store.dart';
+import '../core/errors.dart';
 import '../widgets/common.dart';
 import 'shell.dart';
 import 'driver_join.dart';
@@ -12,7 +13,7 @@ class PublishStartScreen extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: Store.i,
         builder: (context, _) => switch (Store.i.driverStatus) {
-          DStatus.none => const DriverJoinIntro(),
+          DStatus.none || DStatus.rejected => Store.i.driverStatus == DStatus.rejected ? const SafeArea(child: DriverStatusBody()) : const DriverJoinIntro(),
           DStatus.approved => const _PublishHome(),
           _ => const SafeArea(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -97,8 +98,23 @@ class _PublishFlowState extends State<PublishFlow> {
     _price = _suggest;
   }
 
-  void _publish() {
+  static const _prefOptions = ['ممنوع التدخين', 'وقفات استراحة', 'مكيّف', 'أغاني بالسيارة', 'بلا أغاني', 'شناتي كبيرة', 'بحب الهدوء'];
+  final _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    _pc.dispose();
+    super.dispose();
+  }
+
+  Future<void> _publish() async {
     final d = DateTime.now().add(Duration(days: _day));
+    final at = DateTime(d.year, d.month, d.day, _time.hour, _time.minute);
+    if (at.isBefore(DateTime.now().add(const Duration(minutes: 30)))) {
+      throw AppException('INVALID_DEPARTURE', AppException.messages['INVALID_DEPARTURE']!);
+    }
+    final prof = Store.i.profile;
     final dep = _time.hour * 60 + _time.minute;
     final dur = durationMin(_from, _to);
     String hm(int m) => '${(m ~/ 60 % 24).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
@@ -114,16 +130,16 @@ class _PublishFlowState extends State<PublishFlow> {
       price: _price,
       seatsLeft: _seats,
       seatsTotal: _seats,
-      driver: me,
-      car: Store.i.app == null ? 'سيارتي' : '${Store.i.app!.car} · ${Store.i.app!.color}',
-      plate: Store.i.app?.plate ?? '',
+      driver: Person(prof?.name ?? Store.i.name, Store.i.name.isEmpty ? 'أ' : Store.i.name.substring(0, 1), id: prof?.id ?? ''),
+      car: prof?.car ?? (Store.i.app == null ? 'سيارتي' : '${Store.i.app!.car} · ${Store.i.app!.color}'),
+      plate: prof?.plate ?? Store.i.app?.plate ?? '',
       kind: _who.contains(1) ? RideKind.family : (_female ? RideKind.women : RideKind.men),
       instant: _booking == 0,
       stops: [for (var i = 0; i < _stopList.length; i++) if (_stops.contains(i)) _stopList[i]],
       day: _day,
     );
-    Store.i.publish(t);
-    goReplace(context, PublishedScreen(from: _from, to: _to));
+    await Store.i.publish(t, prefs: [for (final i in _prefs) if (i < _prefOptions.length) _prefOptions[i]], note: _note.text);
+    if (mounted) goReplace(context, PublishedScreen(from: _from, to: _to));
   }
 
   void _next() {
@@ -132,10 +148,7 @@ class _PublishFlowState extends State<PublishFlow> {
       return;
     }
     if (_step == 1) _onRoute();
-    if (_step == _total - 1) {
-      _publish();
-      return;
-    }
+    if (_step == _total - 1) return;
     setState(() => _step++);
     _pc.animateToPage(_step, duration: const Duration(milliseconds: 420), curve: Curves.easeOutCubic);
   }
@@ -261,14 +274,14 @@ class _PublishFlowState extends State<PublishFlow> {
                     InfoNote(_female ? 'الرحلة النسائية بتنعرض للراكبات بس.' : 'الراكبات بيحجزوا مع السائقات، أو ضمن عائلتها.', icon: Icons.shield_outlined),
                   ])),
                   _page('تفضيلات الرحلة', Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    ChipGroup(options: const ['ممنوع التدخين', 'وقفات استراحة', 'مكيّف', 'أغاني بالسيارة', 'بلا أغاني', 'شناتي كبيرة', 'بحب الهدوء'], selected: _prefs, onTap: (i) => setState(() => _prefs.contains(i) ? _prefs.remove(i) : _prefs.add(i))),
+                    ChipGroup(options: _prefOptions, selected: _prefs, onTap: (i) => setState(() => _prefs.contains(i) ? _prefs.remove(i) : _prefs.add(i))),
                     const SizedBox(height: 16),
-                    const TextField(maxLines: 4, style: TextStyle(fontFamily: kFont, fontSize: 15), decoration: InputDecoration(hintText: 'ملاحظة للركاب (اختياري)')),
+                    TextField(controller: _note, maxLines: 4, maxLength: 500, style: const TextStyle(fontFamily: kFont, fontSize: 15), decoration: const InputDecoration(hintText: 'ملاحظة للركاب (اختياري)')),
                   ])),
                 ],
               ),
             ),
-            Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 16), child: Btn(_step == _total - 1 ? 'انشر الرحلة' : 'متابعة', onTap: _next)),
+            Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 16), child: _step == _total - 1 ? AsyncBtn('انشر الرحلة', icon: Icons.check_rounded, busyLabel: 'عم ننشر...', onTap: _publish) : Btn('متابعة', onTap: _next)),
           ]),
         ),
       ),

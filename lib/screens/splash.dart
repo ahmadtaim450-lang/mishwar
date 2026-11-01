@@ -6,6 +6,8 @@ import '../data/syria_map.dart';
 import '../data/world_land.dart';
 import '../widgets/common.dart';
 import 'onboarding.dart';
+import 'shell.dart';
+import '../data/store.dart';
 import '../widgets/syria_hero.dart';
 
 /// شاشة البداية: خريطة سوريا ثلاثية الأبعاد ومدنها موصولة ببعض.
@@ -27,7 +29,7 @@ class SplashScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
                   child: Column(children: [
-                    Btn('يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, const OnboardingScreen())),
+                    Btn(Store.i.signedIn && (Store.i.profile?.complete ?? false) ? 'أهلين ${Store.i.name}، كمّل' : 'يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, Store.i.signedIn && (Store.i.profile?.complete ?? false) ? const AppShell() : const OnboardingScreen())),
                     const SizedBox(height: 10),
                     const Text('مشوارك بأمان', style: TextStyle(fontFamily: kFont, fontSize: 13, color: Colors.white70)),
                   ]),

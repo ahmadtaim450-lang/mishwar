@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../data/store.dart';
@@ -24,6 +25,12 @@ class MyTripsScreen extends StatefulWidget {
 class _MyTripsScreenState extends State<MyTripsScreen> {
   late int _tab = Store.i.rides.isNotEmpty && Store.i.driverPending > 0 ? 1 : 0;
   final _s = Store.i;
+
+  @override
+  void initState() {
+    super.initState();
+    _s.refreshAll();
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -124,8 +131,33 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
             Text(r.booked == 0 ? 'لسا ما في حجوزات · ${seatsLabel(r.t.seatsTotal)} فاضيين' : '${r.booked} من ${r.t.seatsTotal} محجوزين · بتجمع ${money(r.booked * r.t.price)}', style: const TextStyle(fontFamily: kFont, color: Colors.white)),
           ]),
         ),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(children: [
+            if (r.status == 'scheduled') ...[
+              Expanded(child: AsyncBtn('بلّشت الرحلة', kind: BtnKind.dark, icon: Icons.play_arrow_rounded, onTap: () => _s.startRide(r))),
+              const SizedBox(width: 8),
+              Expanded(child: AsyncBtn('إلغاء الرحلة', kind: BtnKind.outline, onTap: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    title: const Text('تلغي الرحلة؟', style: TextStyle(fontFamily: kFont)),
+                    content: Text(r.booked > 0 ? 'رح نبلّغ ${r.booked} ركاب إنو الرحلة انلغت.' : 'ما في حجوزات لسا.', style: const TextStyle(fontFamily: kFont)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('لا', style: TextStyle(fontFamily: kFont))),
+                      TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('إلغاء الرحلة', style: TextStyle(fontFamily: kFont, color: C.danger))),
+                    ],
+                  ),
+                );
+                if (ok == true) await _s.cancelRide(r);
+              })),
+            ],
+            if (r.status == 'in_progress') Expanded(child: AsyncBtn('وصلنا، خلصت الرحلة', icon: Icons.flag_rounded, onTap: () => _s.finishRide(r))),
+            if (r.status == 'completed') const Expanded(child: Badge2('الرحلة خلصت ✓')),
+          ]),
+        ),
         const SizedBox(height: 12),
-        if (r.reqs.isEmpty)
+        if (r.reqs.isEmpty && r.status == 'scheduled')
           const Padding(
             padding: EdgeInsets.only(bottom: 16),
             child: Row(children: [
@@ -154,10 +186,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             padding: const EdgeInsets.only(top: 12),
                             child: Row(children: [
                               Expanded(
-                                child: Btn('قبول', onTap: r.booked + q.seats > r.t.seatsTotal ? null : () => _s.answer(q, true)),
+                                child: AsyncBtn('قبول', onTap: r.booked + q.seats > r.t.seatsTotal ? null : () => _s.answer(q, true)),
                               ),
                               const SizedBox(width: 10),
-                              Expanded(child: Btn('رفض', kind: BtnKind.outline, onTap: () => _s.answer(q, false))),
+                              Expanded(child: AsyncBtn('رفض', kind: BtnKind.outline, onTap: () => _s.answer(q, false))),
                             ]),
                           )
                         : const SizedBox(width: double.infinity),
@@ -200,13 +232,32 @@ class _BookingCard extends StatelessWidget {
   }
 }
 
-class TicketScreen extends StatelessWidget {
+class TicketScreen extends StatefulWidget {
   final Booking b;
   const TicketScreen(this.b);
+  @override
+  State<TicketScreen> createState() => _TicketScreenState();
+}
+
+class _TicketScreenState extends State<TicketScreen> {
+  late Booking b = widget.b;
+
+  @override
+  void initState() {
+    super.initState();
+    // الرقم والرمز بيوصلوا من السيرفر بعد التأكيد
+    Store.i.details(widget.b).then((d) {
+      if (mounted) setState(() => b = d);
+    }).catchError((_) {});
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: Store.i,
         builder: (context, _) {
+          for (final x in Store.i.bookings) {
+            if (x.id == b.id) b = x;
+          }
           final t = b.t;
           final pending = b.status == BStatus.pending;
           final canStart = b.status == BStatus.confirmed && t.day <= 0;
@@ -244,9 +295,16 @@ class TicketScreen extends StatelessWidget {
                     Avatar(t.driver, size: 48),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(t.driver.name, style: T.label), Text(t.car, style: T.small)])),
-                    SquareBtn(Icons.chat_bubble_outline_rounded, tooltip: 'مراسلة', onTap: () => go(context, ChatScreen(t.driver))),
+                    SquareBtn(Icons.chat_bubble_outline_rounded, tooltip: 'مراسلة', onTap: () => go(context, ChatScreen(t.driver, b.id))),
                     const SizedBox(width: 8),
-                    SquareBtn(Icons.call_rounded, solid: true, tooltip: 'اتصال', onTap: () => toast(context, pending ? 'الرقم بيظهر بعد ما ${t.driver.name} يقبل' : 'جاري الاتصال...')),
+                    SquareBtn(Icons.call_rounded, solid: true, tooltip: 'اتصال', onTap: () async {
+                      final phone = b.driverPhone;
+                      if (pending || phone == null || phone.contains('•')) {
+                        toast(context, pending ? 'الرقم بيظهر بعد ما ${t.driver.name} يقبل' : 'بالنسخة التجريبية ما في اتصال حقيقي');
+                        return;
+                      }
+                      if (!await launchUrl(Uri(scheme: 'tel', path: phone)) && context.mounted) toast(context, phone);
+                    }),
                   ]),
                 ),
               ),
@@ -369,6 +427,9 @@ class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProvid
       _me = me;
       _gps = onRoute;
     });
+    if (onRoute && Store.i.live) {
+      Store.i.updateLocation(t, p.latitude, p.longitude, accuracy: p.accuracy, heading: p.heading);
+    }
     if (onRoute) {
       _c.stop();
     } else if (!_c.isAnimating) {
@@ -516,16 +577,19 @@ class _ShareTripScreenState extends State<ShareTripScreen> {
           ]),
         ),
         const SizedBox(height: 10),
-        const InfoNote('بنبعت رابط بموقعك هلق مع تفاصيل الرحلة والسائق. المتابعة المباشرة (Live) جاية بالتحديث الجاي.', icon: Icons.info_outline_rounded),
+        InfoNote(Store.i.live ? 'أهلك بيفتحوا الرابط بالمتصفح وبيشوفوا موقعك مباشرة لحتى توصل. الرابط بينتهي لحالو بعد الرحلة.' : 'بالنسخة التجريبية بنبعت لقطة لموقعك هلق. المتابعة المباشرة بتشتغل بعد ربط السيرفر.', icon: Icons.info_outline_rounded),
       ]),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: Btn('شارك هلق', icon: Icons.ios_share_rounded, onTap: _loading
+          child: AsyncBtn('شارك هلق', icon: Icons.ios_share_rounded, onTap: _loading
               ? null
-              : () {
-                  final loc = _p == null ? '' : '\nموقعي هلق: ${mapsLink(_p!.latitude, _p!.longitude)}';
-                  Share.share('أنا مسافر مع مشوار 🚗\n${t.from} ← ${t.to} · ${dayLabel(t.day)} ${t.dep}\nالسائق: ${t.driver.name} · ${t.car}\nالوصول المتوقع: ${t.arr}$loc', subject: 'رحلتي مع مشوار');
+              : () async {
+                  var link = '';
+                  if (widget.b.status == BStatus.confirmed) link = await Store.i.shareLink(widget.b);
+                  final loc = link.isNotEmpty ? '\nتابعني مباشرة: $link' : (_p == null ? '' : '\nموقعي هلق: ${mapsLink(_p!.latitude, _p!.longitude)}');
+                  final plate = (widget.b.plate ?? '').isEmpty ? '' : ' · ${widget.b.plate}';
+                  await Share.share('أنا مسافر مع مشوار\n${t.from} ← ${t.to} · ${dayLabel(t.day)} ${t.dep}\nالسائق: ${t.driver.name} · ${t.car}$plate\nالوصول المتوقع: ${t.arr}$loc', subject: 'رحلتي مع مشوار');
                 }),
         ),
       ),
@@ -594,6 +658,13 @@ class RateScreen extends StatefulWidget {
 class _RateScreenState extends State<RateScreen> {
   int _r = 5;
   final _tags = <int>{0};
+  final _comment = TextEditingController();
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
   static const _words = ['', 'سيئة', 'مقبولة', 'منيحة', 'كتير حلوة', 'ممتازة!'];
   @override
   Widget build(BuildContext context) {
@@ -627,15 +698,16 @@ class _RateScreenState extends State<RateScreen> {
           onTap: (i) => setState(() => _tags.contains(i) ? _tags.remove(i) : _tags.add(i)),
         ),
         const SizedBox(height: 16),
-        const TextField(maxLines: 3, style: TextStyle(fontFamily: kFont), decoration: InputDecoration(hintText: 'بدك تضيف شي؟ (اختياري)')),
+        TextField(controller: _comment, maxLines: 3, maxLength: 500, style: const TextStyle(fontFamily: kFont), decoration: const InputDecoration(hintText: 'بدك تضيف شي؟ (اختياري)')),
       ]),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: Btn('إرسال التقييم', onTap: () {
-            Store.i.rate(widget.b);
+          child: AsyncBtn('إرسال التقييم', onTap: () async {
+            final opts = _r >= 4 ? const ['عالوقت', 'سواقة آمنة', 'سيارة نضيفة', 'محترم', 'وقف للاستراحة'] : const ['تأخر', 'سواقة سريعة', 'السيارة مو نضيفة', 'غيّر المسار'];
+            await Store.i.rate(widget.b, _r, [for (final i in _tags) if (i < opts.length) opts[i]], _comment.text);
             Store.i.say('شكراً عالتقييم');
-            Navigator.pop(context);
+            if (context.mounted) Navigator.pop(context);
           }),
         ),
       ),
@@ -666,9 +738,10 @@ class _CancelBookingScreenState extends State<CancelBookingScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Btn('إلغاء الحجز', kind: BtnKind.danger, onTap: () {
-                Store.i.cancel(widget.b);
-                goReplace(context, const _CancelDone());
+              AsyncBtn('إلغاء الحجز', kind: BtnKind.danger, onTap: () async {
+                const reasons = ['تغيّرت خطتي', 'لقيت طريقة تانية', 'السائق طلب إلغي', 'سبب تاني'];
+                await Store.i.cancel(widget.b, reason: reasons[_w]);
+                if (context.mounted) goReplace(context, const _CancelDone());
               }),
               Btn('خلّي الحجز', kind: BtnKind.ghost, onTap: () => Navigator.pop(context)),
             ]),

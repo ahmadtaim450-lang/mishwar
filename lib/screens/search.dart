@@ -106,6 +106,8 @@ class ResultsScreen extends StatefulWidget {
 class _ResultsScreenState extends State<ResultsScreen> {
   int _sort = 0;
   bool _loading = true;
+  Object? _error;
+  List<Trip> _all = const [];
   late final bool _female = Store.i.female;
   late final List<RideKind> _allowed = _female ? const [RideKind.women, RideKind.family] : const [RideKind.men, RideKind.family];
   late Set<RideKind> _kinds = {..._allowed};
@@ -114,14 +116,27 @@ class _ResultsScreenState extends State<ResultsScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) setState(() => _loading = false);
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
     });
+    try {
+      final r = await Store.i.searchTrips(widget.from, widget.to, widget.day, widget.pax);
+      if (mounted) setState(() => _all = r);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final all = tripsFor(widget.from, widget.to, day: widget.day).where((t) => _allowed.contains(t.kind)).toList();
+    final all = _all.where((t) => _allowed.contains(t.kind)).toList();
     final list = all.where((t) => _kinds.contains(t.kind) && (!_instantOnly || t.instant)).toList();
     list.sort((a, b) => _sort == 1 ? a.price.compareTo(b.price) : a.dep.compareTo(b.dep));
     final hidden = all.length - list.length;
@@ -133,6 +148,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ),
       body: _loading
           ? ListView(padding: const EdgeInsets.all(20), children: List.generate(4, (_) => const _Skeleton()))
+          : _error != null
+              ? ErrorView(_error!, onRetry: _load)
           : list.isEmpty
               ? EmptyState(
                   image: 'empty_search',
@@ -142,7 +159,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     Btn('فعّل تنبيه', icon: Icons.notifications_active_outlined, onTap: () => go(context, const AlertCreatedScreen())),
                   ],
                 )
-              : ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
+              : RefreshIndicator(
+                  color: C.primary,
+                  onRefresh: _load,
+                  child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
+                  if (!Store.i.live) const DemoBanner(),
                   SizedBox(
                     height: 42,
                     child: ListView(scrollDirection: Axis.horizontal, children: [
@@ -175,6 +196,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ]),
                   ),
                 ]),
+                ),
     );
   }
 

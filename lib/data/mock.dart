@@ -3,13 +3,14 @@
 enum RideKind { men, women, family }
 
 class Person {
+  final String id;
   final String name;
   final String initial;
   final String? image;
   final double rating;
   final int trips;
   final bool verified;
-  const Person(this.name, this.initial, {this.image, this.rating = 4.8, this.trips = 10, this.verified = true});
+  const Person(this.name, this.initial, {this.id = '', this.image, this.rating = 4.8, this.trips = 10, this.verified = true});
 }
 
 class Trip {
@@ -106,18 +107,7 @@ const reviews = <Review>[
   Review('خالد', 'خ', 4, 'كلشي منيح، بس الاستراحة طوّلت شوي.', 'تموز 2026'),
 ];
 
-class ChatMsg {
-  final bool me;
-  final String text, time;
-  const ChatMsg(this.me, this.text, this.time);
-}
 
-const chatSeed = <ChatMsg>[
-  ChatMsg(true, 'مرحبا، حجزت مقعد معك لبكرا', '18:02'),
-  ChatMsg(false, 'وعليكم السلام، أهلين. تم القبول، الانطلاق 7 بالزبط من جنب الكورنيش الجنوبي', '18:05'),
-  ChatMsg(true, 'تمام، معي شنتاية صغيرة بس', '18:06'),
-  ChatMsg(false, 'ولا يهمك، في محل', '18:07'),
-];
 
 String money(int v) {
   final s = v.toString();

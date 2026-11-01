@@ -9,7 +9,7 @@ import 'splash.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen();
   @override
-  Widget build(BuildContext context) => ListView(padding: EdgeInsets.zero, children: [
+  Widget build(BuildContext context) => ListenableBuilder(listenable: Store.i, builder: (context, _) => ListView(padding: EdgeInsets.zero, children: [
         Container(
           padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 24, 20, 64),
           color: C.primary,
@@ -19,11 +19,14 @@ class ProfileScreen extends StatelessWidget {
               height: 96,
               decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
               alignment: Alignment.center,
-              child: const Text('إ', style: TextStyle(fontFamily: kFont, fontSize: 46, color: C.primary)),
+              child: Text(Store.i.name.isEmpty ? '؟' : Store.i.name.substring(0, 1), style: const TextStyle(fontFamily: kFont, fontSize: 46, color: C.primary)),
             ),
             const SizedBox(height: 10),
-            const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('إيهاب', style: TextStyle(fontFamily: kFont, fontSize: 24, color: Colors.white)), SizedBox(width: 6), Icon(Icons.verified_rounded, color: Colors.white, size: 20)]),
-            const Text('عضو من تشرين الأول 2026', style: TextStyle(fontFamily: kFont, color: Colors.white)),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Flexible(child: Text(Store.i.profile?.name ?? Store.i.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: kFont, fontSize: 24, color: Colors.white))),
+              if (Store.i.driverStatus == DStatus.approved) ...[const SizedBox(width: 6), const Icon(Icons.verified_rounded, color: Colors.white, size: 20)],
+            ]),
+            Text(Store.i.profile?.phone ?? '', textDirection: TextDirection.ltr, style: const TextStyle(fontFamily: kFont, color: Colors.white)),
           ]),
         ),
         Transform.translate(
@@ -35,7 +38,7 @@ class ProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), boxShadow: [BoxShadow(color: C.dark.withValues(alpha: .1), blurRadius: 30, offset: const Offset(0, 12))]),
                 child: Row(children: [
-                  for (final (a, b) in const [('12', 'رحلة'), ('★ 4.9', 'تقييم'), ('9', 'مراجعات')])
+                  for (final (a, b) in [('${Store.i.profile?.trips ?? 0}', 'رحلة'), ('★ ${(Store.i.profile?.rating ?? 0) == 0 ? '—' : Store.i.profile!.rating.toStringAsFixed(1)}', 'تقييم'), ('${Store.i.bookings.length}', 'حجوزات')])
                     Expanded(child: Column(children: [Text(a, style: const TextStyle(fontFamily: kFont, fontSize: 20, color: C.dark)), Text(b, style: T.small)])),
                 ]),
               ),
@@ -55,12 +58,12 @@ class ProfileScreen extends StatelessWidget {
                 RowItem(
                   Icons.verified_outlined,
                   switch (Store.i.driverStatus) { DStatus.none => 'صير سائق موثّق', DStatus.approved => 'سائق موثّق ✓', _ => 'حالة طلب السائق' },
-                  sub: switch (Store.i.driverStatus) { DStatus.none => 'انشر رحلاتك بعد مقابلة قصيرة', DStatus.reviewing => 'عم نراجع أوراقك', DStatus.interview => 'موعد المقابلة جاهز', DStatus.approved => Store.i.app?.car ?? '' },
+                  sub: switch (Store.i.driverStatus) { DStatus.none => 'انشر رحلاتك بعد مقابلة قصيرة', DStatus.reviewing => 'عم نراجع أوراقك', DStatus.interview => 'موعد المقابلة جاهز', DStatus.approved => Store.i.profile?.car ?? '', DStatus.rejected => 'ما انقبل الطلب، فيك تقدّم من جديد', DStatus.suspended => 'موقوف للمراجعة' },
                   onTap: () => go(context, Store.i.driverStatus == DStatus.none ? const DriverApplyFlow() : const DriverStatusScreen()),
                 ),
                 RowItem(Icons.edit_outlined, 'تعديل الملف', onTap: () => go(context, const EditProfileScreen())),
                 RowItem(Icons.tune_rounded, 'تفضيلات السفر', onTap: () => go(context, const TravelPrefsScreen())),
-                RowItem(Icons.directions_car_outlined, 'سياراتي', sub: 'كيا ريو', onTap: () => go(context, const CarsScreen())),
+                RowItem(Icons.directions_car_outlined, 'سياراتي', sub: Store.i.profile?.car ?? 'ما في سيارة موثّقة', onTap: () => go(context, const CarsScreen())),
                 RowItem(Icons.history_rounded, 'سجل الرحلات', onTap: () => go(context, const HistoryScreen())),
               ]),
               const SizedBox(height: 12),
@@ -74,7 +77,7 @@ class ProfileScreen extends StatelessWidget {
             ]),
           ),
         ),
-      ]);
+      ]));
 }
 
 class _Simple extends StatelessWidget {
@@ -292,20 +295,32 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
 }
 
 class ReportScreen extends StatefulWidget {
-  const ReportScreen();
+  final Person target;
+  final String? tripId;
+  const ReportScreen(this.target, {this.tripId});
   @override
   State<ReportScreen> createState() => _ReportScreenState();
 }
 
 class _ReportScreenState extends State<ReportScreen> {
   int _r = 0;
+  final _details = TextEditingController();
+  static const _reasons = ['ما إجا عالموعد', 'سواقة خطرة', 'تصرف غير لائق', 'طلب مصاري زيادة', 'حساب وهمي'];
   @override
-  Widget build(BuildContext context) => _Simple('بلاغ', [
-        const Text('بلاغك سري، وما رح نقول للعضو مين بلّغ.', style: T.body),
+  void dispose() {
+    _details.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _Simple('بلاغ عن ${widget.target.name}', [
+        const Text('بلاغك سري، وما رح نقول للعضو مين بلّغ. بعد بلاغين من شخصين مختلفين، السائق بيتوقف لحتى نراجع.', style: T.body),
         const SizedBox(height: 12),
-        ChoiceCards(options: const [('ما إجا عالموعد', ''), ('سواقة خطرة', ''), ('تصرف غير لائق', ''), ('طلب مصاري زيادة', ''), ('حساب وهمي', '')], selected: {_r}, onTap: (i) => setState(() => _r = i)),
-        const TextField(maxLines: 3, style: TextStyle(fontFamily: kFont), decoration: InputDecoration(hintText: 'خبرنا شو صار (اختياري)')),
-      ], bottom: Btn('إرسال البلاغ', kind: BtnKind.dark, onTap: () {
+        ChoiceCards(options: [for (final r in _reasons) (r, '')], selected: {_r}, onTap: (i) => setState(() => _r = i)),
+        TextField(controller: _details, maxLines: 3, maxLength: 1000, style: const TextStyle(fontFamily: kFont), decoration: const InputDecoration(hintText: 'خبرنا شو صار (اختياري)')),
+      ], bottom: AsyncBtn('إرسال البلاغ', kind: BtnKind.dark, onTap: () async {
+        await Store.i.report(widget.target.id, _reasons[_r], tripId: widget.tripId, details: _details.text);
+        if (!context.mounted) return;
         toast(context, 'وصلنا بلاغك، رح نتابعو');
         Navigator.pop(context);
       }));
@@ -335,7 +350,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ]),
         const SizedBox(height: 12),
         Group([
-          RowItem(Icons.logout_rounded, 'تسجيل الخروج', danger: true, onTap: () => goReplace(context, const SplashScreen())),
+          RowItem(Icons.logout_rounded, 'تسجيل الخروج', danger: true, onTap: () async {
+            await Store.i.signOut();
+            if (context.mounted) Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const SplashScreen()), (_) => false);
+          }),
           RowItem(Icons.delete_outline_rounded, 'حذف الحساب', danger: true, onTap: () => _confirmDelete(context)),
         ]),
       ]);
@@ -347,7 +365,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: const Text('رح تنحذف رحلاتك وتقييماتك ورسائلك بشكل نهائي.', style: TextStyle(fontFamily: kFont)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('تراجع', style: TextStyle(fontFamily: kFont))),
-            TextButton(onPressed: () => goReplace(context, const SplashScreen()), child: const Text('حذف', style: TextStyle(fontFamily: kFont, color: C.danger))),
+            TextButton(onPressed: () async {
+              // حذف الحساب بيتم من الدعم حالياً (لازم نلغي الحجوزات ونحذف الأوراق بأمان)
+              Navigator.pop(context);
+              toast(context, 'وصلنا طلب حذف الحساب، رح نتواصل معك خلال 48 ساعة');
+            }, child: const Text('حذف', style: TextStyle(fontFamily: kFont, color: C.danger))),
           ],
         ),
       );

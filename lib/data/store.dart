@@ -4,6 +4,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'mock.dart';
+import '../core/errors.dart';
+import 'backend.dart';
+import 'demo_backend.dart';
 
 /// إحداثيات المدن (lat, lon).
 const geo = <String, (double, double)>{
@@ -179,116 +182,214 @@ List<Trip> tripsFor(String from, String to, {int day = 1}) {
   }();
 }
 
-enum BStatus { pending, confirmed, done, cancelled }
+/// معرّفات المدن بقاعدة البيانات.
+const cityIds = <String, String>{
+  'دمشق': 'damascus', 'حلب': 'aleppo', 'اللاذقية': 'latakia', 'حمص': 'homs', 'طرطوس': 'tartus', 'حماة': 'hama',
+  'جبلة': 'jableh', 'درعا': 'daraa', 'بانياس': 'banias', 'إدلب': 'idlib', 'الرقة': 'raqqa', 'دير الزور': 'deir_ez_zor',
+  'الحسكة': 'hasakah', 'القامشلي': 'qamishli', 'السويداء': 'sweida', 'تدمر': 'palmyra', 'السلمية': 'salamiyah',
+  'صافيتا': 'safita', 'القرداحة': 'qardaha', 'منبج': 'manbij', 'القنيطرة': 'quneitra', 'النبك': 'nabk',
+};
+final cityNames = {for (final e in cityIds.entries) e.value: e.key};
+
+// ═══════════════════════════════════════════════════════════════════
+// النماذج
+// ═══════════════════════════════════════════════════════════════════
+
+enum BStatus { pending, confirmed, rejected, done, cancelled }
 
 class Booking {
+  final String id;
   final Trip t;
   final int seats;
   final bool family;
   BStatus status;
-  bool rated = false;
-  /// رمز الرحلة: الراكب بيتأكد منو مع السائق قبل ما يطلع
-  final String pin = (1000 + math.Random().nextInt(9000)).toString();
-  Booking(this.t, this.seats, {this.family = false, this.status = BStatus.pending});
+  bool rated;
+  /// رمز الرحلة: الراكب بيتأكد منو مع السائق قبل ما يطلع (بيظهر بعد التأكيد)
+  String? pin;
+  String? plate;
+  String? driverPhone;
+  Booking(this.t, this.seats, {String? id, this.family = false, this.status = BStatus.pending, this.rated = false, this.pin, this.plate, this.driverPhone})
+      : id = id ?? 'local-${DateTime.now().microsecondsSinceEpoch}';
   int get total => t.price * seats;
+  bool get active => status == BStatus.pending || status == BStatus.confirmed;
 }
 
 class RideReq {
+  final String id;
   final Person p;
   final String note;
   final int seats;
-  int state = 0; // 0 بانتظار، 1 مقبول، 2 مرفوض
-  RideReq(this.p, this.note, {this.seats = 1});
+  int state; // 0 بانتظار، 1 مقبول، 2 مرفوض
+  RideReq(this.p, this.note, {this.seats = 1, String? id, this.state = 0}) : id = id ?? 'req-${DateTime.now().microsecondsSinceEpoch}';
 }
 
 class MyRide {
   final Trip t;
   final reqs = <RideReq>[];
-  MyRide(this.t);
+  String status; // scheduled, in_progress, completed, cancelled
+  MyRide(this.t, {this.status = 'scheduled'});
   int get booked => reqs.where((q) => q.state == 1).fold(0, (a, q) => a + q.seats);
   int get pending => reqs.where((q) => q.state == 0).length;
 }
 
-enum DStatus { none, reviewing, interview, approved }
+enum DStatus { none, reviewing, interview, approved, rejected, suspended }
 
 /// طلب الانضمام كسائق موثّق.
 class DriverApp {
+  String? id;
   String name = '', phone = '', city = '', car = '', year = '', color = '', plate = '';
   final docs = <String, Uint8List>{};
   String place = '';
   int day = 1;
   String slot = '';
+  String? note;
   DateTime sent = DateTime.now();
+
+  /// موعد المقابلة بتوقيت دمشق.
+  DateTime get interviewAt {
+    final p = slot.split(':');
+    final d = DateTime.now().toUtc().add(const Duration(hours: 3)).add(Duration(days: day));
+    return DateTime.utc(d.year, d.month, d.day, int.parse(p[0]), int.parse(p[1])).subtract(const Duration(hours: 3));
+  }
 }
 
+class UserProfile {
+  final String id, name;
+  final bool? female;
+  final DStatus driverStatus;
+  final String? phone, car, plate, vehicleId;
+  final double rating;
+  final int trips;
+  final String role;
+  const UserProfile({required this.id, required this.name, this.female, this.driverStatus = DStatus.none, this.phone, this.car, this.plate, this.vehicleId, this.rating = 0, this.trips = 0, this.role = 'user'});
+  bool get complete => name.trim().length >= 3 && female != null;
+}
+
+class AppNotification {
+  final String id, kind, title, body;
+  final DateTime at;
+  final bool read;
+  const AppNotification(this.id, this.kind, this.title, this.body, this.at, {this.read = false});
+}
+
+class ChatMessage {
+  final String id, body;
+  final bool mine;
+  final DateTime at;
+  const ChatMessage(this.id, this.body, this.mine, this.at);
+}
+
+String timeAgo(DateTime at) {
+  final d = DateTime.now().difference(at);
+  if (d.inMinutes < 1) return 'هلق';
+  if (d.inMinutes < 60) return 'قبل ${d.inMinutes} د';
+  if (d.inHours < 24) return 'قبل ${d.inHours} س';
+  if (d.inDays == 1) return 'مبارح';
+  return 'قبل ${d.inDays} أيام';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Store: حالة التطبيق. الشاشات بتحكي معو، وهو بيحكي مع الـ Backend
+// (Supabase الحقيقي إذا في مفاتيح، أو التجريبي المحلي).
+// ═══════════════════════════════════════════════════════════════════
 class Store extends ChangeNotifier {
-  DStatus driverStatus = DStatus.none;
-  DriverApp? app;
-
-  void submitApplication(DriverApp a) {
-    app = a..sent = DateTime.now();
-    driverStatus = DStatus.reviewing;
-    notifyListeners();
-    Timer(const Duration(seconds: 12), () {
-      if (driverStatus != DStatus.reviewing) return;
-      driverStatus = DStatus.interview;
-      notifyListeners();
-      say('أوراقك تمام! موعد مقابلتك ${dayLabel(a.day)} الساعة ${a.slot}');
-    });
-  }
-
-  void finishInterview() {
-    Timer(const Duration(seconds: 4), () {
-      driverStatus = DStatus.approved;
-      notifyListeners();
-      say('مبروك! صرت سائق موثّق بمشوار، فيك تنشر رحلتك الأولى');
-    });
-  }
-
-  void cancelApplication() {
-    driverStatus = DStatus.none;
-    app = null;
-    notifyListeners();
-  }
-
   static final i = Store._();
-  final messenger = GlobalKey<ScaffoldMessengerState>();
+  Store._();
 
-  bool female = false;
-  String name = 'إيهاب';
+  final messenger = GlobalKey<ScaffoldMessengerState>();
+  Backend backend = DemoBackend();
+  StreamSubscription<void>? _changes;
+
+  UserProfile? profile;
+  DriverApp? app;
   int pax = 1;
   final bookings = <Booking>[];
   final rides = <MyRide>[];
+  final notifications = <AppNotification>[];
   final recent = <(String, String)>[('جبلة', 'حمص'), ('طرطوس', 'حلب')];
+  bool loadingTrips = false;
 
-  Store._() {
-    final t = tripsFor('اللاذقية', 'دمشق', day: 1).first;
-    bookings.add(Booking(t, 1, status: BStatus.confirmed));
-    final past = tripsFor('جبلة', 'حمص', day: -4).first;
-    bookings.add(Booking(past, 1, status: BStatus.done));
+  bool get live => backend.isLive;
+  bool get signedIn => backend.signedIn;
+  String get name => (profile?.name.trim().isNotEmpty ?? false) ? profile!.name.split(' ').first : 'ضيف';
+  bool get female => profile?.female ?? false;
+  DStatus get driverStatus => profile?.driverStatus ?? DStatus.none;
+  int get unread => notifications.where((n) => !n.read).length;
+
+  /// بيشغّل الـ Backend وبيرجّع إذا المستخدم مسجّل وحسابو كامل.
+  Future<bool> start(Backend b) async {
+    backend = b;
+    await backend.init();
+    _changes?.cancel();
+    _changes = backend.changes.listen((_) => refreshAll());
+    if (!backend.signedIn) return false;
+    await _loadProfile();
+    if (profile?.complete ?? false) unawaited(refreshAll());
+    return profile?.complete ?? false;
   }
 
-  List<Booking> get upcoming => bookings.where((b) => b.status == BStatus.pending || b.status == BStatus.confirmed).toList()..sort((a, b) => a.t.day != b.t.day ? a.t.day.compareTo(b.t.day) : a.t.dep.compareTo(b.t.dep));
-  List<Booking> get past => bookings.where((b) => b.status == BStatus.done).toList();
-  Booking? get next {
-    final u = upcoming;
-    return u.isEmpty ? null : u.first;
-  }
-
-  int get driverPending => rides.fold(0, (a, r) => a + r.pending);
-
-  Booking? bookingOf(Trip t) {
-    for (final b in bookings) {
-      if (b.t.id == t.id && b.status != BStatus.cancelled) return b;
-    }
-    return null;
-  }
-
-  void setFemale(bool v) {
-    female = v;
+  Future<void> _loadProfile() async {
+    profile = await backend.loadProfile();
     notifyListeners();
   }
 
+  bool _notesLoaded = false;
+
+  Future<void> refreshAll() async {
+    if (!backend.signedIn) return;
+    final seen = {for (final n in notifications) n.id};
+    try {
+      final results = await Future.wait([backend.myBookings(), backend.myRides(), backend.notifications(), backend.loadProfile()]);
+      bookings
+        ..clear()
+        ..addAll(results[0] as List<Booking>);
+      rides
+        ..clear()
+        ..addAll(results[1] as List<MyRide>);
+      notifications
+        ..clear()
+        ..addAll(results[2] as List<AppNotification>);
+      profile = results[3] as UserProfile? ?? profile;
+      // إشعار جديد وصل؟ منعرضو فوراً
+      if (_notesLoaded) {
+        for (final n in notifications.where((n) => !n.read && !seen.contains(n.id)).take(2)) {
+          say('${n.title} · ${n.body}');
+        }
+      }
+      _notesLoaded = true;
+      notifyListeners();
+    } catch (_) {
+      // التحديث بالخلفية: إذا فشل منحافظ عالبيانات القديمة
+    }
+  }
+
+  // ── الدخول ─────────────────────────────────────────────────────────
+  Future<void> sendOtp(String phone) => _guard(() => backend.sendOtp(normalizePhone(phone)));
+
+  /// بيرجّع true إذا الحساب كامل (فينا ندخل عالرئيسية مباشرة).
+  Future<bool> verifyOtp(String phone, String code) => _guard(() async {
+        await backend.verifyOtp(normalizePhone(phone), code);
+        await _loadProfile();
+        if (profile?.complete ?? false) unawaited(refreshAll());
+        return profile?.complete ?? false;
+      });
+
+  Future<void> completeProfile(String fullName, bool female, {String? music}) => _guard(() async {
+        await backend.completeProfile(fullName, female, music: music);
+        await _loadProfile();
+        unawaited(refreshAll());
+      });
+
+  Future<void> signOut() async {
+    await backend.signOut();
+    profile = null;
+    bookings.clear();
+    rides.clear();
+    notifications.clear();
+    notifyListeners();
+  }
+
+  // ── البحث ──────────────────────────────────────────────────────────
   void search(String from, String to) {
     recent.removeWhere((e) => e.$1 == from && e.$2 == to);
     recent.insert(0, (from, to));
@@ -296,58 +397,149 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  Booking book(Trip t, int seats, {bool family = false}) {
-    final b = Booking(t, seats, family: family, status: t.instant ? BStatus.confirmed : BStatus.pending);
-    bookings.insert(0, b);
-    notifyListeners();
-    if (!t.instant) {
-      Timer(const Duration(seconds: 9), () {
-        if (b.status != BStatus.pending) return;
-        b.status = BStatus.confirmed;
-        notifyListeners();
-        say('${t.driver.name} قبل حجزك على رحلة ${t.from} ← ${t.to}. رحلة موفقة');
-      });
+  Future<List<Trip>> searchTrips(String from, String to, int day, int seats) => _guard(() => backend.searchTrips(from, to, day, seats));
+  Future<Map<String, (int, int)>> destinationStats(String from, int day) => _guard(() => backend.destinationStats(from, day));
+
+  // ── الحجوزات ───────────────────────────────────────────────────────
+  List<Booking> get upcoming => bookings.where((b) => b.active).toList()..sort((a, b) => a.t.day != b.t.day ? a.t.day.compareTo(b.t.day) : a.t.dep.compareTo(b.t.dep));
+  List<Booking> get past => bookings.where((b) => b.status == BStatus.done).toList();
+  Booking? get next {
+    final u = upcoming;
+    return u.isEmpty ? null : u.first;
+  }
+
+  Booking? bookingOf(Trip t) {
+    for (final b in bookings) {
+      if (b.t.id == t.id && b.active) return b;
     }
-    return b;
+    return null;
   }
 
-  void cancel(Booking b) {
-    b.status = BStatus.cancelled;
-    notifyListeners();
-  }
+  Future<Booking> book(Trip t, int seats, {bool family = false, String? message}) => _guard(() async {
+        final b = await backend.requestBooking(t, seats, family: family, message: message);
+        bookings.removeWhere((x) => x.id == b.id);
+        bookings.insert(0, b);
+        notifyListeners();
+        return b;
+      });
 
+  Future<Booking> details(Booking b) => _guard(() async {
+        final d = await backend.bookingDetails(b);
+        final i = bookings.indexWhere((x) => x.id == d.id);
+        if (i >= 0) bookings[i] = d;
+        notifyListeners();
+        return d;
+      });
+
+  Future<void> cancel(Booking b, {String reason = ''}) => _guard(() async {
+        await backend.cancelBooking(b, reason);
+        b.status = BStatus.cancelled;
+        notifyListeners();
+      });
+
+  Future<void> rate(Booking b, int stars, List<String> tags, String? comment) => _guard(() async {
+        await backend.submitReview(b, stars, tags, comment);
+        b.rated = true;
+        notifyListeners();
+      });
+
+  Future<void> report(String targetId, String reason, {String? tripId, String? details}) => _guard(() => backend.report(targetId, tripId, reason, details));
+
+  // ── السائق ─────────────────────────────────────────────────────────
+  int get driverPending => rides.fold(0, (a, r) => a + r.pending);
+
+  Future<Trip> publish(Trip draft, {List<String> prefs = const [], String? note}) => _guard(() async {
+        final t = await backend.publishTrip(draft, prefs: prefs, note: note);
+        rides.insert(0, MyRide(t));
+        notifyListeners();
+        return t;
+      });
+
+  Future<void> answer(RideReq q, bool ok) => _guard(() async {
+        await backend.respond(q, ok);
+        q.state = ok ? 1 : 2;
+        notifyListeners();
+      });
+
+  Future<void> cancelRide(MyRide r) => _guard(() async {
+        await backend.cancelTrip(r.t);
+        r.status = 'cancelled';
+        notifyListeners();
+      });
+
+  Future<void> startRide(MyRide r) => _guard(() async {
+        await backend.startTrip(r.t);
+        r.status = 'in_progress';
+        notifyListeners();
+      });
+
+  Future<void> finishRide(MyRide r) => _guard(() async {
+        await backend.completeTrip(r.t);
+        r.status = 'completed';
+        notifyListeners();
+      });
+
+  /// الراكب بيأكد وصولو (بالتجريبي). بالحقيقي السائق هو اللي بينهي الرحلة.
   void finish(Booking b) {
-    b.status = BStatus.done;
+    if (!live) b.status = BStatus.done;
     notifyListeners();
   }
 
-  void rate(Booking b) {
-    b.rated = true;
-    notifyListeners();
-  }
-
-  void publish(Trip t) {
-    final ride = MyRide(t);
-    rides.insert(0, ride);
-    notifyListeners();
-    final guests = female
-        ? [(reem, 'راكبة وحدة · شنتاية صغيرة', 1), (noorDriver, 'مع بنتي · مقعدين', 2)]
-        : [(mazen, 'راكب واحد · طالب جامعة', 1), (hussam, 'شنتاية صغيرة', 1)];
-    var delay = 7;
-    for (final (p, note, s) in guests) {
-      Timer(Duration(seconds: delay), () {
-        if (!rides.contains(ride)) return;
-        ride.reqs.add(RideReq(p, note, seats: s));
-        notifyListeners();
-        say('وصلك طلب حجز من ${p.name} على رحلتك لـ${t.to}');
+  Future<void> submitApplication(DriverApp a, {void Function(double)? onProgress}) => _guard(() async {
+        app = a..sent = DateTime.now();
+        await backend.submitApplication(a, onProgress ?? (_) {});
+        await _loadProfile();
       });
-      delay += 12;
+
+  Future<void> refreshApplication() async {
+    try {
+      final (status, a) = await backend.application();
+      if (a != null) app = a;
+      if (profile != null && status != profile!.driverStatus) await _loadProfile();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// بالتجريبي بس: بيحاكي حضور المقابلة.
+  void finishInterview() {
+    if (backend is DemoBackend) (backend as DemoBackend).approveAfterInterview();
+  }
+
+  Future<void> cancelApplication() => _guard(() async {
+        await backend.cancelApplication();
+        app = null;
+        await _loadProfile();
+      });
+
+  // ── التتبع والرسائل والإشعارات ─────────────────────────────────────
+  Future<void> updateLocation(Trip t, double lat, double lon, {double? accuracy, double? heading}) async {
+    try {
+      await backend.updateLocation(t, lat, lon, accuracy, heading);
+    } catch (_) {
+      // التتبع بيكمّل بالمحاولة الجاية
     }
   }
 
-  void answer(RideReq q, bool ok) {
-    q.state = ok ? 1 : 2;
-    notifyListeners();
+  Future<String> shareLink(Booking b) => _guard(() => backend.createShareLink(b));
+  Stream<List<ChatMessage>> messages(String bookingId) => backend.messages(bookingId);
+  Future<void> sendMessage(String bookingId, String body) => _guard(() => backend.sendMessage(bookingId, body.trim()));
+
+  Future<void> markAllRead() => _guard(() async {
+        await backend.markNotificationsRead();
+        final all = notifications.map((n) => AppNotification(n.id, n.kind, n.title, n.body, n.at, read: true)).toList();
+        notifications
+          ..clear()
+          ..addAll(all);
+        notifyListeners();
+      });
+
+  // ── أدوات ──────────────────────────────────────────────────────────
+  Future<T> _guard<T>(Future<T> Function() f) async {
+    try {
+      return await f();
+    } catch (e) {
+      throw AppException.from(e);
+    }
   }
 
   void say(String msg) => messenger.currentState?.showSnackBar(SnackBar(
@@ -357,4 +549,21 @@ class Store extends ChangeNotifier {
         duration: const Duration(seconds: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ));
+}
+
+/// رقم سوري بالصيغة الدولية: +9639XXXXXXXX
+String normalizePhone(String raw) {
+  // الأرقام العربية (٠١٢...) بتتحوّل لإنكليزية أول
+  const eastern = '٠١٢٣٤٥٦٧٨٩';
+  final buf = StringBuffer();
+  for (final ch in raw.split('')) {
+    final k = eastern.indexOf(ch);
+    buf.write(k >= 0 ? '$k' : ch);
+  }
+  var d = buf.toString().replaceAll(RegExp(r'[^0-9]'), '');
+  if (d.startsWith('00963')) d = d.substring(5);
+  if (d.startsWith('963')) d = d.substring(3);
+  if (d.startsWith('0')) d = d.substring(1);
+  if (!RegExp(r'^9[0-9]{8}$').hasMatch(d)) throw const AppException('INVALID_PHONE', 'رقم الموبايل مو صحيح، لازم يبلّش بـ 9 ويكون 9 أرقام');
+  return '+963$d';
 }

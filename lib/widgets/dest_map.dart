@@ -13,17 +13,17 @@ class DestStat {
   const DestStat(this.id, this.city, this.trips, this.fromPrice, [this.tag]);
 }
 
-/// إحصائيات الوجهات محسوبة من نفس رحلات البحث، فالأرقام بتطابق النتائج.
-List<DestStat> destStatsFor(String from, int day) {
+/// إحصائيات الوجهات من نفس مصدر البحث، فالأرقام بتطابق النتائج.
+List<DestStat> buildDestStats(String from, Map<String, (int, int)> raw) {
   final list = <DestStat>[
     for (final e in _cityIds.entries)
-      if (e.key != from)
-        DestStat(e.value, e.key, tripsFor(from, e.key, day: day).length, suggestedPrice(from, e.key)),
+      if (e.key != from) DestStat(e.value, e.key, raw[e.key]?.$1 ?? 0, raw[e.key]?.$2 ?? suggestedPrice(from, e.key)),
   ];
-  if (list.isEmpty) return list;
-  final most = list.reduce((a, b) => a.trips >= b.trips ? a : b);
-  final cheap = list.reduce((a, b) => a.fromPrice <= b.fromPrice ? a : b);
-  return [for (final d in list) DestStat(d.id, d.city, d.trips, d.fromPrice, d == most ? 'الأكتر رحلات' : d == cheap ? 'الأقرب' : null)];
+  final withTrips = list.where((d) => d.trips > 0).toList();
+  if (withTrips.isEmpty) return list;
+  final most = withTrips.reduce((a, b) => a.trips >= b.trips ? a : b);
+  final cheap = withTrips.reduce((a, b) => a.fromPrice <= b.fromPrice ? a : b);
+  return [for (final d in list) DestStat(d.id, d.city, d.trips, d.fromPrice, d == most ? 'الأكتر رحلات' : d == cheap ? 'الأرخص' : null)];
 }
 
 const _cityIds = {'اللاذقية': 'latakia', 'جبلة': 'jableh', 'طرطوس': 'tartus', 'حمص': 'homs', 'حماة': 'hama', 'حلب': 'aleppo', 'دمشق': 'damascus', 'درعا': 'daraa'};
@@ -47,6 +47,20 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
   DestStat? _sel;
   Size _view = Size.zero;
   double _k = 1; // مقياس الخريطة داخل المساحة
+  Map<String, (int, int)> _raw = const {};
+  String _loadedKey = '';
+
+  Future<void> _loadStats() async {
+    final key = '${widget.from}>${widget.day}';
+    if (key == _loadedKey) return;
+    _loadedKey = key;
+    try {
+      final r = await Store.i.destinationStats(widget.from, widget.day);
+      if (mounted && key == _loadedKey) setState(() => _raw = r);
+    } catch (_) {
+      _loadedKey = '';
+    }
+  }
 
   @override
   void initState() {
@@ -54,6 +68,13 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
     _anim.addListener(() {
       if (_mAnim != null) _tc.value = _mAnim!.value;
     });
+    _loadStats();
+  }
+
+  @override
+  void didUpdateWidget(covariant DestinationsMap old) {
+    super.didUpdateWidget(old);
+    if (old.from != widget.from || old.day != widget.day) _loadStats();
   }
 
   @override
@@ -100,7 +121,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     final fromId = _cityIds[widget.from];
-    final destStats = destStatsFor(widget.from, widget.day);
+    final destStats = buildDestStats(widget.from, _raw);
     if (_sel != null) {
       final m = destStats.where((d) => d.id == _sel!.id);
       _sel = m.isEmpty ? null : m.first;
@@ -137,7 +158,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
                     Positioned.fill(child: CustomPaint(painter: _SyriaPainter(origin: o, k: _k))),
                     if (fromId != null) _here(o + _pos(fromId) * _k),
                     for (final d in destStats)
-                      if (d.id != fromId && d.id != 'jableh' && !(d.id == 'latakia' && fromId == 'jableh')) _bubble(d, o + _pos(d.id) * _k),
+                      if (d.trips > 0 && d.id != fromId && d.id != 'jableh' && !(d.id == 'latakia' && fromId == 'jableh')) _bubble(d, o + _pos(d.id) * _k),
                   ]),
                 ),
               ),
@@ -163,8 +184,10 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
                 child: SizedBox(
                   height: 40,
                   child: ListView(scrollDirection: Axis.horizontal, children: [
+                    if (destStats.every((d) => d.trips == 0))
+                      Center(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('لسا ما في رحلات منشورة من ${widget.from} ${dayLabel(widget.day)}', style: T.small))),
                     for (final d in destStats)
-                      if (d.id != fromId)
+                      if (d.id != fromId && d.trips > 0)
                         Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: ActionChip(

@@ -1,89 +1,95 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock.dart';
+import '../data/store.dart';
 import '../widgets/common.dart';
 
 class InboxScreen extends StatelessWidget {
   const InboxScreen();
   @override
-  Widget build(BuildContext context) {
-    final threads = [
-      (samer, 'ولا يهمك، في محل', '18:07', 2),
-      (mazen, 'تمام، بشوفك عالكورنيش', '17:40', 1),
-      (hussam, 'شكراً، وصلت بالسلامة', 'امبارح', 0),
-      (const Person('دعم مشوار', 'م'), 'كيف فينا نساعدك؟', 'الثلاثاء', 0),
-    ];
-    return SafeArea(
-      child: ListView(padding: const EdgeInsets.all(20), children: [
-        Row(children: [
-          const Expanded(child: Text('الرسائل', style: T.h1)),
-          SquareBtn(Icons.notifications_none_rounded, tooltip: 'الإشعارات', onTap: () => go(context, const NotificationsScreen())),
-        ]),
-        const SizedBox(height: 12),
-        const TextField(style: TextStyle(fontFamily: kFont), decoration: InputDecoration(hintText: 'دوّر بالمحادثات', prefixIcon: Icon(Icons.search_rounded, color: C.muted))),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22)),
-          child: Column(children: [
-            for (var i = 0; i < threads.length; i++)
-              Enter(
-                delay: i * 70,
-                child: InkWell(
-                  onTap: () => go(context, ChatScreen(threads[i].$1)),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(border: i < threads.length - 1 ? const Border(bottom: BorderSide(color: C.line, width: 1.5)) : null),
-                    child: Row(children: [
-                      Avatar(threads[i].$1, size: 52),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [Expanded(child: Text(threads[i].$1.name, style: T.label)), Text(threads[i].$3, style: T.small)]),
-                          Row(children: [
-                            Expanded(child: Text(threads[i].$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: kFont, fontSize: 13.5, color: threads[i].$4 > 0 ? C.dark : C.muted))),
-                            if (threads[i].$4 > 0)
-                              Container(
-                                width: 22,
-                                height: 22,
-                                decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
-                                alignment: Alignment.center,
-                                child: Text('${threads[i].$4}', style: const TextStyle(fontFamily: kFont, color: Colors.white, fontSize: 12)),
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: Store.i,
+        builder: (context, _) {
+          // محادثة لكل حجز: مع السائق (كراكب) أو مع الراكب (كسائق)
+          final threads = <(Person, String, String)>[
+            for (final b in Store.i.bookings.where((b) => b.status != BStatus.cancelled && b.status != BStatus.rejected)) (b.t.driver, b.id, '${b.t.from} ← ${b.t.to} · ${dayLabel(b.t.day)}'),
+            for (final r in Store.i.rides)
+              for (final q in r.reqs.where((q) => q.state != 2)) (q.p, q.id, 'راكب برحلتك ${r.t.from} ← ${r.t.to}'),
+          ];
+          return SafeArea(
+            child: ListView(padding: const EdgeInsets.all(20), children: [
+              Row(children: [
+                const Expanded(child: Text('الرسائل', style: T.h1)),
+                SquareBtn(Icons.notifications_none_rounded, tooltip: 'الإشعارات', onTap: () => go(context, const NotificationsScreen())),
+              ]),
+              const SizedBox(height: 12),
+              if (threads.isEmpty)
+                const EmptyState(image: 'empty_search', title: 'ما في محادثات', body: 'بس تحجز رحلة أو يوصلك طلب حجز، فيك تراسل الطرف التاني من هون.')
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22)),
+                  child: Column(children: [
+                    for (var i = 0; i < threads.length; i++)
+                      Enter(
+                        delay: i * 60,
+                        child: InkWell(
+                          onTap: () => go(context, ChatScreen(threads[i].$1, threads[i].$2)),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(border: i < threads.length - 1 ? const Border(bottom: BorderSide(color: C.line, width: 1.5)) : null),
+                            child: Row(children: [
+                              Avatar(threads[i].$1, size: 52),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(threads[i].$1.name, style: T.label),
+                                  Text(threads[i].$3, maxLines: 1, overflow: TextOverflow.ellipsis, style: T.small),
+                                ]),
                               ),
-                          ]),
-                        ]),
+                              const Icon(Icons.chevron_left_rounded, color: C.muted),
+                            ]),
+                          ),
+                        ),
                       ),
-                    ]),
-                  ),
+                  ]),
                 ),
-              ),
-          ]),
-        ),
-      ]),
-    );
-  }
+            ]),
+          );
+        },
+      );
 }
 
 class ChatScreen extends StatefulWidget {
   final Person p;
-  const ChatScreen(this.p);
+  final String bookingId;
+  const ChatScreen(this.p, this.bookingId);
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _msgs = [...chatSeed];
   final _ctl = TextEditingController();
   final _scroll = ScrollController();
+  late final Stream<List<ChatMessage>> _stream = Store.i.messages(widget.bookingId);
+  bool _sending = false;
 
-  void _send(String text) {
-    if (text.trim().isEmpty) return;
-    setState(() => _msgs.add(ChatMsg(true, text.trim(), 'هلق')));
-    _ctl.clear();
-    Future.delayed(const Duration(milliseconds: 60), () {
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-    });
+  Future<void> _send(String text) async {
+    final body = text.trim();
+    if (body.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    final ok = await attempt(context, () => Store.i.sendMessage(widget.bookingId, body));
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) _ctl.clear();
+    _toEnd();
   }
+
+  void _toEnd() => Future.delayed(const Duration(milliseconds: 80), () {
+        if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      });
+
+  String _time(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   @override
   void dispose() {
@@ -107,8 +113,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(width: 10),
                   Avatar(widget.p),
                   const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text(widget.p.name, style: T.label), const Text('متصل الآن', style: TextStyle(fontFamily: kFont, fontSize: 12, color: Color(0xFF2FBF71)))])),
-                  SquareBtn(Icons.call_rounded, solid: true, tooltip: 'اتصال', onTap: () => toast(context, 'جاري الاتصال...')),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text(widget.p.name, style: T.label), const Text('الرسائل بتنحفظ ضمن الحجز', style: T.small)])),
                 ]),
               ),
             ),
@@ -116,14 +121,22 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         body: Column(children: [
           Expanded(
-            child: ListView.builder(
+            child: StreamBuilder<List<ChatMessage>>(
+              stream: _stream,
+              builder: (context, snap) {
+                if (snap.hasError) return ErrorView(snap.error!, onRetry: () => setState(() {}));
+                if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: C.primary));
+                final msgs = snap.data!;
+                if (msgs.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(30), child: Text('ما في رسائل لسا. اسأل عن نقطة الانطلاق أو الشناتي.', style: T.body, textAlign: TextAlign.center)));
+                _toEnd();
+                return ListView.builder(
               controller: _scroll,
               padding: const EdgeInsets.all(16),
-              itemCount: _msgs.length,
+              itemCount: msgs.length,
               itemBuilder: (_, i) {
-                final m = _msgs[i];
+                final m = msgs[i];
                 return Align(
-                  alignment: m.me ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
+                  alignment: m.mine ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
                   child: Enter(
                     dy: 10,
                     child: Container(
@@ -131,21 +144,23 @@ class _ChatScreenState extends State<ChatScreen> {
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: m.me ? C.primary : Colors.white,
+                        color: m.mine ? C.primary : Colors.white,
                         borderRadius: BorderRadiusDirectional.only(
                           topStart: const Radius.circular(18),
                           topEnd: const Radius.circular(18),
-                          bottomStart: Radius.circular(m.me ? 6 : 18),
-                          bottomEnd: Radius.circular(m.me ? 18 : 6),
+                          bottomStart: Radius.circular(m.mine ? 6 : 18),
+                          bottomEnd: Radius.circular(m.mine ? 18 : 6),
                         ),
                       ),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(m.text, style: TextStyle(fontFamily: kFont, fontSize: 15, height: 1.6, color: m.me ? Colors.white : C.dark)),
-                        Text(m.time, style: TextStyle(fontFamily: kFont, fontSize: 10.5, color: m.me ? Colors.white70 : C.muted)),
+                        Text(m.body, style: TextStyle(fontFamily: kFont, fontSize: 15, height: 1.6, color: m.mine ? Colors.white : C.dark)),
+                        Text(_time(m.at), style: TextStyle(fontFamily: kFont, fontSize: 10.5, color: m.mine ? Colors.white70 : C.muted)),
                       ]),
                     ),
                   ),
                 );
+              },
+            );
               },
             ),
           ),
@@ -165,7 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: SafeArea(
               top: false,
               child: Row(children: [
-                Expanded(child: TextField(controller: _ctl, onSubmitted: _send, style: const TextStyle(fontFamily: kFont), decoration: const InputDecoration(hintText: 'اكتب رسالة…', fillColor: C.bg))),
+                Expanded(child: TextField(controller: _ctl, onSubmitted: _send, maxLength: 1000, style: const TextStyle(fontFamily: kFont), decoration: const InputDecoration(hintText: 'اكتب رسالة…', fillColor: C.bg, counterText: ''))),
                 const SizedBox(width: 10),
                 SquareBtn(Icons.send_rounded, solid: true, tooltip: 'إرسال', onTap: () => _send(_ctl.text)),
               ]),
@@ -182,39 +197,56 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  bool _read = false;
   @override
-  Widget build(BuildContext context) {
-    const items = [
-      (Icons.check_circle_rounded, 'تم قبول حجزك', 'سامر قبل طلبك لرحلة اللاذقية ← دمشق بكرا 07:00', 'قبل 5 دقايق', true),
-      (Icons.chat_bubble_rounded, 'رسالة جديدة', 'سامر: الانطلاق 7 بالزبط من جنب الكورنيش الجنوبي', 'قبل 20 دقيقة', true),
-      (Icons.add_circle_rounded, 'طلب حجز جديد', 'مازن بدو مقعد برحلتك يوم السبت', 'قبل ساعة', false),
-      (Icons.star_rounded, 'قيّم رحلتك', 'كيف كانت رحلتك من جبلة لحمص؟', 'امبارح', false),
-      (Icons.alarm_rounded, 'تذكير', 'رحلتك بكرا الساعة 7 الصبح، لا تتأخر', 'امبارح', false),
-    ];
-    return Scaffold(
-      appBar: TopBar(title: 'الإشعارات', actions: [TextButton(onPressed: () => setState(() => _read = true), child: const Text('قراءة الكل', style: TextStyle(fontFamily: kFont, color: C.primary)))]),
-      body: ListView(padding: const EdgeInsets.all(20), children: [
-        for (var i = 0; i < items.length; i++)
-          Enter(
-            delay: i * 60,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
-                opacity: items[i].$5 && !_read ? 1 : .8,
-                child: CardBox(
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(width: 46, height: 46, decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(15)), child: Icon(items[i].$1, color: C.primary)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(items[i].$2, style: T.label), Text(items[i].$3, style: T.body.copyWith(fontSize: 13.5)), Text(items[i].$4, style: T.small)])),
-                    if (items[i].$5 && !_read) Container(width: 10, height: 10, margin: const EdgeInsets.only(top: 6), decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle)),
-                  ]),
-                ),
-              ),
-            ),
-          ),
-      ]),
-    );
+  void initState() {
+    super.initState();
+    Store.i.refreshAll();
   }
+
+  static IconData _icon(String kind) => switch (kind.split('.').first) {
+        'booking' => kind.endsWith('confirmed') ? Icons.check_circle_rounded : (kind.endsWith('requested') ? Icons.add_circle_rounded : Icons.event_busy_rounded),
+        'trip' => Icons.route_rounded,
+        'application' || 'driver' => Icons.verified_rounded,
+        _ => Icons.notifications_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: Store.i,
+        builder: (context, _) {
+          final items = Store.i.notifications;
+          return Scaffold(
+            appBar: TopBar(title: 'الإشعارات', actions: [
+              if (Store.i.unread > 0) TextButton(onPressed: () => attempt(context, Store.i.markAllRead), child: const Text('قراءة الكل', style: TextStyle(fontFamily: kFont, color: C.primary))),
+            ]),
+            body: items.isEmpty
+                ? const EmptyState(image: 'alert_bell', title: 'ما في إشعارات', body: 'رح نخبرك هون لما ينقبل حجزك أو يوصلك طلب أو يتغيّر شي برحلتك.')
+                : RefreshIndicator(
+                    color: C.primary,
+                    onRefresh: Store.i.refreshAll,
+                    child: ListView(padding: const EdgeInsets.all(20), children: [
+                      for (var i = 0; i < items.length; i++)
+                        Enter(
+                          delay: i * 50,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 300),
+                              opacity: items[i].read ? .75 : 1,
+                              child: CardBox(
+                                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Container(width: 46, height: 46, decoration: BoxDecoration(color: C.tint, borderRadius: BorderRadius.circular(15)), child: Icon(_icon(items[i].kind), color: C.primary)),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(items[i].title, style: T.label), if (items[i].body.isNotEmpty) Text(items[i].body, style: T.body.copyWith(fontSize: 13.5)), Text(timeAgo(items[i].at), style: T.small)])),
+                                  if (!items[i].read) Container(width: 10, height: 10, margin: const EdgeInsets.only(top: 6), decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle)),
+                                ]),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ]),
+                  ),
+          );
+        },
+      );
 }

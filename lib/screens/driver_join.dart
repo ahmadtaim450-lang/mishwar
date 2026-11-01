@@ -117,7 +117,9 @@ class DriverApplyFlow extends StatefulWidget {
 
 class _DriverApplyFlowState extends State<DriverApplyFlow> {
   final _pc = PageController();
-  final _a = DriverApp()..name = Store.i.name;
+  final _a = DriverApp()..name = Store.i.profile?.name ?? '';
+  double _progress = 0;
+  bool _sending = false;
   final _picker = ImagePicker();
   int _step = 0;
   bool _agree = false;
@@ -161,15 +163,28 @@ class _DriverApplyFlowState extends State<DriverApplyFlow> {
     }
     FocusScope.of(context).unfocus();
     if (_step == _total - 1) {
-      Store.i.submitApplication(_a);
-      goReplace(context, const DriverStatusScreen(justSent: true));
+      _send();
       return;
     }
     setState(() => _step++);
     _pc.animateToPage(_step, duration: const Duration(milliseconds: 380), curve: Curves.easeOutCubic);
   }
 
+  Future<void> _send() async {
+    setState(() {
+      _sending = true;
+      _progress = 0;
+    });
+    final ok = await attempt(context, () => Store.i.submitApplication(_a, onProgress: (p) {
+          if (mounted) setState(() => _progress = p);
+        }));
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) goReplace(context, const DriverStatusScreen(justSent: true));
+  }
+
   void _back() {
+    if (_sending) return;
     if (_step == 0) {
       Navigator.pop(context);
       return;
@@ -338,7 +353,16 @@ class _DriverApplyFlowState extends State<DriverApplyFlow> {
                   ]),
                 ]),
               ),
-              Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 16), child: Btn(_step == _total - 1 ? 'أرسل الطلب' : 'متابعة', icon: _step == _total - 1 ? Icons.send_rounded : null, onTap: _next)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: _sending
+                    ? Column(mainAxisSize: MainAxisSize.min, children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _progress == 0 ? null : _progress, minHeight: 10, color: C.primary, backgroundColor: C.line)),
+                        const SizedBox(height: 8),
+                        Text(_progress == 0 ? 'عم نبعت الطلب...' : 'عم نرفع الصور ${(_progress * 100).round()}%', style: T.small),
+                      ])
+                    : Btn(_step == _total - 1 ? 'أرسل الطلب' : 'متابعة', icon: _step == _total - 1 ? Icons.send_rounded : null, onTap: _next),
+              ),
             ]),
           ),
         ),
@@ -407,19 +431,30 @@ class DriverStatusScreen extends StatelessWidget {
       );
 }
 
-class DriverStatusBody extends StatelessWidget {
+class DriverStatusBody extends StatefulWidget {
   const DriverStatusBody();
+  @override
+  State<DriverStatusBody> createState() => _DriverStatusBodyState();
+}
+
+class _DriverStatusBodyState extends State<DriverStatusBody> {
+  @override
+  void initState() {
+    super.initState();
+    Store.i.refreshApplication();
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: Store.i,
         builder: (context, _) {
           final s = Store.i.driverStatus;
           final a = Store.i.app;
-          final idx = switch (s) { DStatus.none => 0, DStatus.reviewing => 1, DStatus.interview => 2, DStatus.approved => 4 };
+          final idx = switch (s) { DStatus.none || DStatus.rejected => 0, DStatus.reviewing => 1, DStatus.interview => 2, DStatus.approved || DStatus.suspended => 4 };
           final steps = [
             ('انبعت الطلب', a == null ? '' : '${a.docs.length} صور · ${a.car} ${a.year}'),
             ('مراجعة الأوراق', 'عادةً خلال يوم أو يومين'),
-            ('المقابلة وفحص السيارة', a == null ? '' : '${dayLabel(a.day)} الساعة ${a.slot} · نقطة مشوار ${a.city}'),
+            ('المقابلة وفحص السيارة', a == null || a.slot.isEmpty ? '' : '${dayLabel(a.day)} الساعة ${a.slot} · ${a.place.isEmpty ? 'نقطة مشوار ${a.city}' : a.place}'),
             ('التفعيل', 'بتاخد شارة سائق موثّق وبتنشر رحلاتك'),
           ];
           return ListView(padding: const EdgeInsets.all(20), children: [
@@ -432,11 +467,11 @@ class DriverStatusBody extends StatelessWidget {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(
-                      switch (s) { DStatus.reviewing => 'عم نراجع أوراقك', DStatus.interview => 'موعد مقابلتك جاهز', DStatus.approved => 'صرت سائق موثّق!', DStatus.none => 'ما في طلب' },
+                      switch (s) { DStatus.reviewing => 'عم نراجع أوراقك', DStatus.interview => 'موعد مقابلتك جاهز', DStatus.approved => 'صرت سائق موثّق!', DStatus.rejected => 'ما انقبل طلبك', DStatus.suspended => 'حسابك موقوف للمراجعة', DStatus.none => 'ما في طلب' },
                       style: const TextStyle(fontFamily: kFont, fontSize: 22, color: Colors.white),
                     ),
                     Text(
-                      switch (s) { DStatus.reviewing => 'رح يوصلك إشعار أول ما نخلص', DStatus.interview => 'جيب الهوية وشهادة السواقة والميكانيك الأصليين', DStatus.approved => 'فيك هلق تنشر رحلتك الأولى', DStatus.none => '' },
+                      switch (s) { DStatus.reviewing => 'رح يوصلك إشعار أول ما نخلص', DStatus.interview => 'جيب الهوية وشهادة السواقة والميكانيك الأصليين', DStatus.approved => 'فيك هلق تنشر رحلتك الأولى', DStatus.rejected => a?.note ?? 'فيك تقدّم من جديد بعد ما تصلّح الملاحظات', DStatus.suspended => 'وصلنا بلاغات، رح نتواصل معك', DStatus.none => '' },
                       style: const TextStyle(fontFamily: kFont, color: C.tint),
                     ),
                   ]),
@@ -474,7 +509,9 @@ class DriverStatusBody extends StatelessWidget {
             const SizedBox(height: 16),
             if (s == DStatus.approved)
               Btn('انشر رحلتك الأولى', icon: Icons.add_rounded, onTap: () => go(context, const PublishFlow())),
-            if (s == DStatus.interview) ...[
+            if (s == DStatus.rejected)
+              Btn('قدّم من جديد', icon: Icons.refresh_rounded, onTap: () => go(context, const DriverApplyFlow())),
+            if (s == DStatus.interview && !Store.i.live) ...[
               const InfoNote('هي نسخة تجريبية: اكبس الزر لتجرّب شو بيصير بعد المقابلة.', icon: Icons.science_outlined),
               const SizedBox(height: 10),
               Btn('حضرت المقابلة (تجريبي)', kind: BtnKind.dark, onTap: () {
@@ -484,9 +521,9 @@ class DriverStatusBody extends StatelessWidget {
             ],
             if (s == DStatus.reviewing || s == DStatus.interview) ...[
               const SizedBox(height: 8),
-              Btn('إلغاء الطلب', kind: BtnKind.ghost, onTap: () {
-                Store.i.cancelApplication();
-                Navigator.of(context).maybePop();
+              AsyncBtn('إلغاء الطلب', kind: BtnKind.ghost, onTap: () async {
+                await Store.i.cancelApplication();
+                if (context.mounted) Navigator.of(context).maybePop();
               }),
             ],
           ]);

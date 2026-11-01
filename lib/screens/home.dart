@@ -202,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('$a ← $b', style: T.label),
-                              Text('${tripsLabel(tripsFor(a, b, day: _day).length)} ${dayLabel(_day)} · من ${money(suggestedPrice(a, b))}', style: T.small),
+                              Text('${dayLabel(_day)} · ${roadKm(a, b)} كم · حوالي ${money(suggestedPrice(a, b))}', style: T.small),
                             ]),
                           ),
                           const Icon(Icons.chevron_left_rounded, color: C.muted),

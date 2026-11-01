@@ -4,10 +4,19 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme.dart';
 import 'screens/splash.dart';
 import 'data/store.dart';
+import 'core/config.dart';
+import 'data/demo_backend.dart';
+import 'data/supabase_backend.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.dark));
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light));
+  // Supabase إذا في مفاتيح، غير هيك الوضع التجريبي
+  try {
+    await Store.i.start(AppConfig.live ? SupabaseBackend() : DemoBackend());
+  } catch (_) {
+    await Store.i.start(DemoBackend());
+  }
   runApp(const MishwarApp());
 }
 
