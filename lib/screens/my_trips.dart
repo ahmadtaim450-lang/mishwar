@@ -487,17 +487,19 @@ class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProvid
                 child: Row(children: [
                   SquareBtn(Icons.arrow_forward_rounded, tooltip: 'رجوع', onTap: () => Navigator.pop(context)),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: _gps ? const Color(0xFF1E9E5A) : C.warnBg, borderRadius: BorderRadius.circular(12)),
-                    child: Text(_gps ? '● موقعك الحقيقي' : (_me == null ? 'معاينة · شغّل الموقع' : 'معاينة · انت مو عالطريق'), style: TextStyle(fontFamily: kFont, fontSize: 12, color: _gps ? Colors.white : C.warn)),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: _gps ? const Color(0xFF1E9E5A) : C.warnBg, borderRadius: BorderRadius.circular(12)),
+                      child: Text(_gps ? '● موقعك الحقيقي' : (_me == null ? 'معاينة · شغّل الموقع' : 'معاينة · انت مو عالطريق'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: kFont, fontSize: 12, color: _gps ? Colors.white : C.warn)),
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Press(
                     onTap: () => go(context, const SosScreen()),
                     child: Container(
                       height: 48,
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(color: const Color(0xFFD93A22), borderRadius: BorderRadius.circular(16)),
                       child: const Row(children: [Icon(Icons.sos_rounded, color: Colors.white), SizedBox(width: 6), Text('طوارئ', style: TextStyle(fontFamily: kFont, color: Colors.white, fontSize: 16))]),
                     ),
@@ -514,8 +516,8 @@ class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProvid
                   Center(child: Container(width: 44, height: 5, decoration: BoxDecoration(color: C.border, borderRadius: BorderRadius.circular(5)))),
                   const SizedBox(height: 12),
                   Row(children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('الوصول المتوقع', style: T.small), Text(eta, style: const TextStyle(fontFamily: kFont, fontSize: 32, color: C.dark))])),
-                    Text('باقي $km كم لـ${t.to}', style: const TextStyle(fontFamily: kFont, color: C.primary, fontSize: 16)),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('الوصول المتوقع', style: T.small), FittedBox(fit: BoxFit.scaleDown, child: Text(eta, style: const TextStyle(fontFamily: kFont, fontSize: 32, color: C.dark)))])),
+                    Flexible(child: Text('باقي $km كم لـ${t.to}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: kFont, color: C.primary, fontSize: 16))),
                   ]),
                   const SizedBox(height: 8),
                   ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: (1 - km / roadKm(t.from, t.to)).clamp(0.02, 1.0), minHeight: 8, backgroundColor: C.line, color: C.primary)),

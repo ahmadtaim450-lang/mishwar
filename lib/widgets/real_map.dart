@@ -125,6 +125,8 @@ class _TripMapState extends State<TripMap> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.mishwar.mishwar',
           maxZoom: 18,
+          // بلا نت: الخريطة بتضل بدون خلفية بدل ما تطلع أخطاء
+          tileProvider: NetworkTileProvider(silenceExceptions: true),
         ),
         PolylineLayer(polylines: [
           Polyline(points: _route, strokeWidth: 9, color: C.dark.withValues(alpha: .25)),
@@ -136,8 +138,8 @@ class _TripMapState extends State<TripMap> {
             if (kCityPoints[widget.cities[i]] != null)
               Marker(
                 point: kCityPoints[widget.cities[i]]!,
-                width: 90,
-                height: 54,
+                width: 100,
+                height: 64,
                 alignment: Alignment.topCenter,
                 child: _CityPin(widget.cities[i], last: i == widget.cities.length - 1, first: i == 0),
               ),
@@ -178,7 +180,7 @@ class _CityPin extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(color: last ? C.yellow : (first ? C.dark : Colors.white), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .15), blurRadius: 6)]),
-          child: Text(name, style: TextStyle(fontFamily: kFont, fontSize: 13, color: first ? Colors.white : C.dark)),
+          child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: kFont, fontSize: 13, color: first ? Colors.white : C.dark)),
         ),
         const SizedBox(height: 4),
         Container(width: 14, height: 14, decoration: BoxDecoration(color: last ? C.yellow : C.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3))),
