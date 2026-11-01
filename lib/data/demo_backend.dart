@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
 import '../core/errors.dart';
+import '../map/geo_math.dart';
+import '../map/models.dart';
 import 'backend.dart';
 import 'mock.dart';
 import 'store.dart';
@@ -372,4 +377,192 @@ class DemoBackend implements Backend {
       _notes[i] = AppNotification(n.id, n.kind, n.title, n.body, n.at, read: true);
     }
   }
+
+  // ── الخرائط (تجريبي: نفس قواعد السيرفر، بيانات من مولّد الرحلات) ─────
+  final _places = <SavedPlace>[];
+  final _tripPts = <String, (LatLng?, LatLng?)>{};
+  static const _mapDests = ['دمشق', 'حلب', 'حمص', 'اللاذقية', 'طرطوس', 'حماة', 'درعا', 'جبلة'];
+
+  static DateTime _damascusNow() => DateTime.now().toUtc().add(const Duration(hours: 3));
+  static DateTime _depUtc(int day, String hm) {
+    final p = hm.split(':');
+    final d = _damascusNow().add(Duration(days: day));
+    return DateTime.utc(d.year, d.month, d.day, int.parse(p[0]), int.parse(p[1])).subtract(const Duration(hours: 3));
+  }
+
+  List<MapTrip> _mapTripsWhere(bool Function(LatLng p) inArea, MapFilter f, LatLng? me) {
+    final now = DateTime.now().toUtc();
+    final out = <MapTrip>[];
+    for (final day in f.day == null ? const [0, 1, 2] : [f.day!]) {
+      for (final board in geo.keys) {
+        final g = geo[board]!;
+        final bp = LatLng(g.$1, g.$2);
+        if (!inArea(bp)) continue;
+        for (final to in f.to == null ? _mapDests : [f.to!]) {
+          if (to == board) continue;
+          for (final t in tripsFor(board, to, day: day)) {
+            if (!_allowed.contains(t.kind) || (f.kinds.isNotEmpty && !f.kinds.contains(t.kind))) continue;
+            if (t.seatsLeft < f.seats || (f.maxPrice != null && t.price > f.maxPrice!) || (f.instantOnly && !t.instant)) continue;
+            final dep = _depUtc(day, t.dep);
+            if (!dep.isAfter(now)) continue;
+            final pick = _tripPts[t.id]?.$1;
+            final pt = pick ?? bp;
+            out.add(MapTrip(
+              tripId: t.id,
+              board: board,
+              to: to,
+              point: pt,
+              exact: pick != null,
+              departure: dep,
+              arrival: dep.add(Duration(minutes: durationMin(board, to))),
+              price: t.price,
+              seats: t.seatsLeft,
+              kind: t.kind,
+              instant: t.instant,
+              driver: t.driver.name,
+              rating: t.driver.rating,
+              distanceKm: me == null ? null : double.parse(kmBetween(me, pt).toStringAsFixed(1)),
+            ));
+          }
+        }
+      }
+    }
+    out.sort((a, b) => me == null ? a.departure.compareTo(b.departure) : (a.distanceKm!.compareTo(b.distanceKm!) != 0 ? a.distanceKm!.compareTo(b.distanceKm!) : a.departure.compareTo(b.departure)));
+    return out.take(300).toList();
+  }
+
+  void _checkFilter(MapFilter f) {
+    if (f.seats < 1 || f.seats > 7) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+  }
+
+  @override
+  Future<List<MapTrip>> mapTrips(GeoBounds area, MapFilter f, {LatLng? me}) async {
+    await _wait();
+    _checkFilter(f);
+    if (area.south > area.north || area.west > area.east) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    return _mapTripsWhere(area.contains, f, me);
+  }
+
+  @override
+  Future<List<MapTrip>> tripsNear(LatLng at, double radiusKm, MapFilter f) async {
+    await _wait();
+    _checkFilter(f);
+    if (radiusKm <= 0 || radiusKm > 500) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    return _mapTripsWhere((p) => kmBetween(at, p) <= radiusKm, f, at).take(100).toList();
+  }
+
+  @override
+  Future<List<GeoPlace>> searchPlaces(String q, {LatLng? near}) async {
+    if (q.length > 80) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    final n = norm(q.toLowerCase());
+    final saved = _places.where((p) => n.isEmpty || norm(p.label).contains(n)).map((p) => p.asPlace);
+    final found = (n.isEmpty ? cities : searchCities(q)).where((c) => geo.containsKey(c.name)).map((c) {
+      final g = geo[c.name]!;
+      final pt = LatLng(g.$1, g.$2);
+      return GeoPlace(name: c.name, label: c.sub, point: pt, kind: PlaceKind.city, city: c.name, distanceKm: near == null ? null : kmBetween(near, pt));
+    }).toList();
+    if (near != null && n.isEmpty) found.sort((a, b) => a.distanceKm!.compareTo(b.distanceKm!));
+    return [...saved, ...found].take(12).toList();
+  }
+
+  /// الوضع التجريبي ما بيتصل بمزود عناوين (المفاتيح بالسيرفر بس).
+  @override
+  Future<List<GeoPlace>> geocodeSuggest(String q, {LatLng? near}) async => const [];
+
+  @override
+  Future<GeoPlace?> reverseGeocode(LatLng at) async {
+    final c = await nearestCity(at);
+    if (c == null) return null;
+    return GeoPlace(name: c.$2 < 2 ? c.$1 : 'قرب ${c.$1}', label: '${fmtKm(c.$2)} عن مركز ${c.$1}', point: at, kind: PlaceKind.address, city: c.$1);
+  }
+
+  /// بالتجربة: طريق حقيقي من OSRM العام (للتجربة بس)، وإذا ما زبط مسار تقريبي.
+  @override
+  Future<List<RouteOption>> route(List<LatLng> points, {bool alternatives = true}) async {
+    if (points.length < 2 || points.length > 6) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    if (delay == Duration.zero) return [approximateRoute(points)]; // الاختبارات: بلا شبكة
+    try {
+      final coords = points.map((p) => '${p.longitude},${p.latitude}').join(';');
+      final res = await http
+          .get(Uri.parse('https://router.project-osrm.org/route/v1/driving/$coords?overview=full&geometries=geojson&alternatives=${alternatives && points.length == 2}'))
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return [approximateRoute(points)];
+      final body = utf8.decode(res.bodyBytes);
+      final j = jsonDecode(body) as Map<String, dynamic>;
+      final routes = [
+        for (final r in (j['routes'] as List).cast<Map>())
+          RouteOption(
+            line: [for (final c in (r['geometry']['coordinates'] as List)) LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble())],
+            meters: (r['distance'] as num).round(),
+            seconds: (r['duration'] as num).round(),
+          ),
+      ];
+      return routes.isEmpty ? [approximateRoute(points)] : routes.take(3).toList();
+    } catch (_) {
+      return [approximateRoute(points)];
+    }
+  }
+
+  @override
+  Future<(String, double)?> nearestCity(LatLng at) async {
+    String? best;
+    var bd = double.infinity;
+    for (final e in geo.entries) {
+      final d = kmBetween(at, LatLng(e.value.$1, e.value.$2));
+      if (d < bd) {
+        bd = d;
+        best = e.key;
+      }
+    }
+    return best == null ? null : (best, double.parse(bd.toStringAsFixed(1)));
+  }
+
+  @override
+  Future<List<CityActivity>> cityActivity() async {
+    final counts = <String, int>{};
+    for (final t in _mapTripsWhere((_) => true, const MapFilter(), null)) {
+      counts[t.board] = (counts[t.board] ?? 0) + 1;
+    }
+    return [
+      for (final e in counts.entries) CityActivity(e.key, LatLng(geo[e.key]!.$1, geo[e.key]!.$2), e.value),
+    ]..sort((a, b) => b.departures.compareTo(a.departures));
+  }
+
+  @override
+  Future<List<GeoPlace>> cityPlaces(String city) async => const [];
+
+  @override
+  Future<List<SavedPlace>> myPlaces() async => List.of(_places);
+
+  @override
+  Future<SavedPlace> savePlace(String label, LatLng at, {String kind = 'other', String? address}) async {
+    await _wait();
+    final l = label.trim();
+    if (l.isEmpty || l.length > 40 || !{'home', 'work', 'other'}.contains(kind)) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    if (!GeoBounds.syria.contains(at)) throw AppException('OUTSIDE_SYRIA', AppException.messages['OUTSIDE_SYRIA']!);
+    if (kind != 'other') _places.removeWhere((p) => p.kind == kind);
+    _places.removeWhere((p) => p.label == l);
+    if (_places.length >= 20) throw AppException('LIMIT_REACHED', AppException.messages['LIMIT_REACHED']!);
+    final p = SavedPlace(id: 'p${DateTime.now().microsecondsSinceEpoch}', label: l, kind: kind, point: at, address: address);
+    _places.add(p);
+    return p;
+  }
+
+  @override
+  Future<void> deletePlace(String id) async {
+    final before = _places.length;
+    _places.removeWhere((p) => p.id == id);
+    if (_places.length == before) throw AppException('NOT_FOUND', AppException.messages['NOT_FOUND']!);
+  }
+
+  @override
+  Future<void> setTripPoints(Trip t, {LatLng? pickup, LatLng? dropoff}) async {
+    LatLng city(String n) => LatLng(geo[n]!.$1, geo[n]!.$2);
+    if (pickup != null && geo.containsKey(t.from) && kmBetween(pickup, city(t.from)) > 25) throw AppException('POINT_TOO_FAR', AppException.messages['POINT_TOO_FAR']!);
+    if (dropoff != null && geo.containsKey(t.to) && kmBetween(dropoff, city(t.to)) > 25) throw AppException('POINT_TOO_FAR', AppException.messages['POINT_TOO_FAR']!);
+    _tripPts[t.id] = (pickup, dropoff);
+  }
+
+  @override
+  Future<(LatLng?, LatLng?)> tripPoints(Trip t) async => _tripPts[t.id] ?? (null, null);
 }

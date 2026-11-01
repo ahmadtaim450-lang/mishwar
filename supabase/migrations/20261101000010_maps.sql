@@ -161,6 +161,23 @@ begin
     dropoff_lat = p_dropoff_lat, dropoff_lon = p_dropoff_lon, updated_at = now() where id = t.id;
 end $$;
 
+-- نقطة التجمع والنزول لرحلة (لأي حدا بيشوف الرحلة بالبحث، أو أطراف الحجز)
+create or replace function public.trip_points(p_trip uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  t public.trips;
+begin
+  select * into t from public.trips where id = p_trip;
+  if not found then perform public._fail('TRIP_NOT_FOUND'); end if;
+  if not (t.driver_id = auth.uid() or public.has_booking_on(t.id) or public.is_staff()
+          or (t.status = 'scheduled' and exists (select 1 from public.profiles p where p.id = t.driver_id and p.driver_status = 'approved'))) then
+    perform public._fail('FORBIDDEN');
+  end if;
+  return jsonb_build_object(
+    'pickup', case when t.pickup_lat is null then null else jsonb_build_object('lat', t.pickup_lat, 'lon', t.pickup_lon) end,
+    'dropoff', case when t.dropoff_lat is null then null else jsonb_build_object('lat', t.dropoff_lat, 'lon', t.dropoff_lon) end);
+end $$;
+
 -- ── الرحلات على الخريطة ────────────────────────────────────────────
 -- كل نقطة صعود (الانطلاق أو وقفة) بتطلع كصف لحالها، مع سعر ووقت الجزء لآخر الطريق.
 -- نفس قواعد البحث: سائق موثّق، مقاعد، رحلة جاية، وفلترة الجنس.
@@ -514,7 +531,7 @@ revoke execute on function
   public.trips_near(double precision, double precision, double precision, date, text, public.ride_kind[], int),
   public.search_places(text, double precision, double precision, int),
   public.nearest_city(double precision, double precision),
-  public.city_places(text), public.city_activity(int),
+  public.city_places(text), public.city_activity(int), public.trip_points(uuid),
   public.save_place(text, double precision, double precision, text, text), public.delete_place(uuid), public.my_places(),
   public.admin_upsert_place(uuid, text, text, public.place_kind, double precision, double precision, text, text),
   public.admin_set_place_active(uuid, boolean)
@@ -525,7 +542,7 @@ grant execute on function
   public.trips_near(double precision, double precision, double precision, date, text, public.ride_kind[], int),
   public.search_places(text, double precision, double precision, int),
   public.nearest_city(double precision, double precision),
-  public.city_places(text), public.city_activity(int),
+  public.city_places(text), public.city_activity(int), public.trip_points(uuid),
   public.save_place(text, double precision, double precision, text, text), public.delete_place(uuid), public.my_places(),
   public.admin_upsert_place(uuid, text, text, public.place_kind, double precision, double precision, text, text),
   public.admin_set_place_active(uuid, boolean)

@@ -96,9 +96,13 @@ jobs:
 
       - name: Build web
         env:
+          MAP_TILES_LIGHT: ${{ secrets.MAP_TILES_LIGHT }}
+          MAP_TILES_DARK: ${{ secrets.MAP_TILES_DARK }}
+          MAP_ATTRIBUTION: ${{ secrets.MAP_ATTRIBUTION }}
+          MAP_ALLOW_OFFLINE: ${{ secrets.MAP_ALLOW_OFFLINE }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: flutter build web --release --base-href /mishwar/ --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+        run: flutter build web --release --base-href /mishwar/ --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" --dart-define=MAP_TILES_LIGHT="$MAP_TILES_LIGHT" --dart-define=MAP_TILES_DARK="$MAP_TILES_DARK" --dart-define=MAP_ATTRIBUTION="$MAP_ATTRIBUTION" --dart-define=MAP_ALLOW_OFFLINE="${MAP_ALLOW_OFFLINE:-false}"
 
       - name: Add family tracking page and admin panel
         env:

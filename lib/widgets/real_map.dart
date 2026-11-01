@@ -1,11 +1,11 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/theme.dart';
-import '../data/store.dart' show geo;
+import '../data/store.dart' show geo, Store;
+import '../map/map_widgets.dart' show PlacePin;
+import '../map/tiles.dart';
 
 /// مدن ونقاط حقيقية على الطريق الدولي (M1 / M5).
 final kCityPoints = <String, LatLng>{
@@ -28,21 +28,14 @@ List<LatLng> fallbackRoute(List<String> cities) {
   return pts;
 }
 
-/// بيجيب الطريق الحقيقي من OSRM (مجاني)، وإذا فشل بيرجع المسار التقريبي.
+/// الطريق الحقيقي من خدمة الخرائط (عن طريق السيرفر)، وإذا ما زبط المسار التقريبي.
 Future<List<LatLng>> fetchRoute(List<String> cities) async {
   final pts = cities.map((c) => kCityPoints[c]).whereType<LatLng>().toList();
   if (pts.length < 2) return fallbackRoute(cities);
   try {
-    final coords = pts.map((p) => '${p.longitude},${p.latitude}').join(';');
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
-    final req = await client.getUrl(Uri.parse('https://router.project-osrm.org/route/v1/driving/$coords?overview=full&geometries=geojson'));
-    req.headers.set('User-Agent', 'Mishwar/1.0');
-    final res = await req.close().timeout(const Duration(seconds: 10));
-    final body = await res.transform(utf8.decoder).join();
-    client.close();
-    final j = jsonDecode(body) as Map<String, dynamic>;
-    final line = (j['routes'] as List).first['geometry']['coordinates'] as List;
-    return [for (final c in line) LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble())];
+    final r = await Store.i.route(pts.take(6).toList(), alternatives: false);
+    if (r.isEmpty || r.first.approximate) return fallbackRoute(cities);
+    return r.first.line;
   } catch (_) {
     return fallbackRoute(cities);
   }
@@ -78,7 +71,8 @@ class TripMap extends StatefulWidget {
   final bool interactive;
   final ValueChanged<List<LatLng>>? onRoute;
   final LatLng? me; // موقع GPS الحقيقي
-  const TripMap({required this.cities, this.carProgress, this.interactive = true, this.onRoute, this.me});
+  final LatLng? pickup; // نقطة التجمع اللي حددها السائق
+  const TripMap({required this.cities, this.carProgress, this.interactive = true, this.onRoute, this.me, this.pickup});
   @override
   State<TripMap> createState() => _TripMapState();
 }
@@ -121,13 +115,7 @@ class _TripMapState extends State<TripMap> {
         },
       ),
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.mishwar.mishwar',
-          maxZoom: 18,
-          // بلا نت: الخريطة بتضل بدون خلفية بدل ما تطلع أخطاء
-          tileProvider: NetworkTileProvider(silenceExceptions: true),
-        ),
+        mishwarTiles(dark: Store.i.mapDark),
         PolylineLayer(polylines: [
           Polyline(points: _route, strokeWidth: 9, color: C.dark.withValues(alpha: .25)),
           Polyline(points: _route, strokeWidth: 5, color: C.primary),
@@ -143,6 +131,8 @@ class _TripMapState extends State<TripMap> {
                 alignment: Alignment.topCenter,
                 child: _CityPin(widget.cities[i], last: i == widget.cities.length - 1, first: i == 0),
               ),
+          if (widget.pickup != null)
+            Marker(point: widget.pickup!, width: 120, height: 52, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.groups_rounded, color: C.dark, label: 'نقطة التجمع')),
           if (widget.me != null)
             Marker(
               point: widget.me!,
@@ -165,7 +155,7 @@ class _TripMapState extends State<TripMap> {
               ),
             ),
         ]),
-        const RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap')]),
+        RichAttributionWidget(showFlutterMapAttribution: false, attributions: [TextSourceAttribution(MapTiles.attribution)]),
       ],
     );
   }

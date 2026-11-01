@@ -13,6 +13,13 @@ import 'package:mishwar/screens/search.dart';
 import 'package:mishwar/screens/trip.dart';
 import 'package:mishwar/screens/messages.dart';
 import 'package:mishwar/screens/publish.dart';
+import 'package:mishwar/screens/map_explore.dart';
+import 'package:mishwar/screens/map_search.dart';
+import 'package:mishwar/screens/pick_point.dart';
+import 'package:mishwar/map/map_widgets.dart';
+import 'package:mishwar/map/models.dart';
+import 'package:mishwar/map/tiles.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Widget wrap(Widget child) => MaterialApp(
       theme: buildTheme(),
@@ -33,6 +40,8 @@ const sizes = {'موبايل صغير': Size(320, 568), 'موبايل': Size(390
 
 void main() {
   setUpAll(() async {
+    TileCache.disabled = true;
+    SharedPreferences.setMockInitialValues({});
     await Store.i.start(DemoBackend(delay: Duration.zero));
     await Store.i.sendOtp('0912345678');
     await Store.i.verifyOtp('0912345678', '123456');
@@ -67,6 +76,10 @@ void main() {
     'مشاركة الموقع': () => ShareTripScreen(Store.i.upcoming.first),
     'متابعة الرحلة': () => LiveTripScreen(Store.i.upcoming.first),
     'المسار': () => RouteScreen(tripsFor('اللاذقية', 'دمشق').first),
+    'الخريطة': () => const MapExploreScreen(),
+    'الخريطة لطريق': () => const MapExploreScreen(focusCity: 'حمص', to: 'دمشق', day: 1),
+    'بحث الخريطة': () => const MapSearchScreen(),
+    'نقطة التجمع': () => PickPointScreen(tripsFor('اللاذقية', 'دمشق').first),
   };
 
   for (final s in sizes.entries) {
@@ -83,7 +96,7 @@ void main() {
   }
 
   // خط مكبّر (إعدادات إمكانية الوصول) على موبايل عادي
-  for (final name in ['الرئيسية', 'النتائج', 'تفاصيل الرحلة', 'رحلاتي', 'التذكرة', 'حسابي', 'الدخول', 'طلب الانضمام']) {
+  for (final name in ['الرئيسية', 'النتائج', 'تفاصيل الرحلة', 'رحلاتي', 'التذكرة', 'حسابي', 'الدخول', 'طلب الانضمام', 'الخريطة', 'نقطة التجمع']) {
     testWidgets('$name بخط مكبّر 130%', (t) async {
       t.view.physicalSize = const Size(390, 844) * 2;
       t.view.devicePixelRatio = 2;
@@ -148,5 +161,80 @@ void main() {
     await t.tap(find.text('متابعة'));
     await settle(t);
     expect(find.textContaining('رقم الموبايل مو صحيح'), findsOneWidget);
+  });
+
+  testWidgets('الخريطة بتعرض الرحلات مجمّعة وبتفتح قائمة المجموعة', (t) async {
+    t.view.physicalSize = const Size(390, 844) * 2;
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(wrap(const MapExploreScreen(day: 1)));
+    await settle(t);
+    expect(find.byType(ClusterBubble), findsWidgets, reason: 'تكبير بعيد = مجموعات');
+    expect(find.textContaining('بهالمنطقة'), findsOneWidget);
+    expect(find.byType(MapTripTile), findsWidgets);
+    // فلتر "اليوم" بيعيد التحميل بلا أخطاء
+    await t.tap(find.text('بكرا').first);
+    await settle(t);
+    await t.tap(find.text('اليوم').first);
+    await settle(t);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('الضغط المطوّل على الخريطة بيختار نقطة وبيعرض الخيارات', (t) async {
+    t.view.physicalSize = const Size(390, 844) * 2;
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(wrap(const MapExploreScreen(focusCity: 'حمص', day: 1)));
+    await settle(t);
+    await t.longPressAt(const Offset(195, 300));
+    await settle(t);
+    expect(find.text('رحلات من هون'), findsOneWidget);
+    expect(find.text('المسار لهون'), findsOneWidget);
+    expect(find.textContaining('قرب'), findsWidgets, reason: 'العنوان التقريبي من أقرب مدينة');
+    await t.tap(find.text('رحلات من هون'));
+    await settle(t);
+    expect(find.textContaining('قريبة من'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('بحث الخريطة بيلاقي المدينة وبيرجعها', (t) async {
+    t.view.physicalSize = const Size(390, 844) * 2;
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    GeoPlace? picked;
+    await t.pumpWidget(wrap(Builder(
+      builder: (c) => Scaffold(
+        body: Center(
+          child: TextButton(
+            onPressed: () async => picked = await Navigator.of(c).push<GeoPlace>(MaterialPageRoute(builder: (_) => const MapSearchScreen())),
+            child: const Text('افتح'),
+          ),
+        ),
+      ),
+    )));
+    await t.tap(find.text('افتح'));
+    await settle(t);
+    await t.enterText(find.byType(TextField), 'طرطو');
+    await settle(t);
+    await t.tap(find.text('طرطوس').first);
+    await settle(t);
+    expect(picked?.name, 'طرطوس');
+    expect(picked?.kind, PlaceKind.city);
+  });
+
+  testWidgets('السائق بيحدد نقطة التجمع وبتنحفظ', (t) async {
+    t.view.physicalSize = const Size(390, 844) * 2;
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    final trip = tripsFor('اللاذقية', 'دمشق').first;
+    await t.pumpWidget(wrap(PickPointScreen(trip)));
+    await settle(t);
+    await t.tap(find.text('هون نقطة الانطلاق'));
+    await settle(t);
+    await t.tap(find.text('احفظ هيك'));
+    await settle(t);
+    final pts = await Store.i.tripPoints(trip);
+    expect(pts.$1, isNotNull);
+    expect(pts.$1!.latitude, closeTo(35.52, .05));
   });
 }

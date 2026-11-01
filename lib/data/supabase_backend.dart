@@ -4,6 +4,9 @@ import 'package:flutter/widgets.dart' show StringCharacters;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config.dart';
 import '../core/errors.dart';
+import 'package:latlong2/latlong.dart';
+import '../map/geo_math.dart';
+import '../map/models.dart';
 import 'backend.dart';
 import 'mock.dart';
 import 'store.dart';
@@ -394,6 +397,199 @@ class SupabaseBackend implements Backend {
 
   @override
   Future<void> unregisterDevice(String token) => _rpc('unregister_device', {'p_token': token});
+
+  // ── الخرائط ────────────────────────────────────────────────────────
+  static MapTrip _mapTrip(Map r) => MapTrip(
+        tripId: r['trip_id'] as String,
+        board: (r['board_name'] as String?) ?? cityNames[r['board_city']] ?? '',
+        to: (r['to_name'] as String?) ?? cityNames[r['to_city']] ?? '',
+        point: LatLng(_num(r['lat']), _num(r['lon'])),
+        exact: r['exact'] == true,
+        departure: DateTime.parse(r['departure_at'] as String).toUtc(),
+        arrival: DateTime.parse(r['arrival_at'] as String).toUtc(),
+        price: (r['price_syp'] as num).toInt(),
+        seats: (r['seats_available'] as num).toInt(),
+        kind: RideKind.values.firstWhere((k) => k.name == r['kind'], orElse: () => RideKind.men),
+        instant: r['instant'] == true,
+        driver: (r['driver_name'] as String?)?.split(' ').first ?? '',
+        rating: _num(r['driver_rating']),
+        distanceKm: r['distance_km'] == null ? null : _num(r['distance_km']),
+      );
+
+  Map<String, dynamic> _filterParams(MapFilter f) => {
+        'p_date': f.day == null ? null : _date(f.day!),
+        'p_to': f.to == null ? null : _cid(f.to!),
+        'p_kinds': f.kinds.isEmpty ? null : [for (final k in f.kinds) k.name],
+        'p_seats': f.seats,
+      };
+
+  @override
+  Future<List<MapTrip>> mapTrips(GeoBounds area, MapFilter f, {LatLng? me}) async {
+    final rows = await _rpc('map_trips', {
+      'p_min_lat': area.south,
+      'p_min_lon': area.west,
+      'p_max_lat': area.north,
+      'p_max_lon': area.east,
+      ..._filterParams(f),
+      'p_max_price': f.maxPrice,
+      'p_lat': me?.latitude,
+      'p_lon': me?.longitude,
+    }) as List;
+    return [for (final r in rows.cast<Map>()) _mapTrip(r)].where((t) => !f.instantOnly || t.instant).toList();
+  }
+
+  @override
+  Future<List<MapTrip>> tripsNear(LatLng at, double radiusKm, MapFilter f) async {
+    final rows = await _rpc('trips_near', {'p_lat': at.latitude, 'p_lon': at.longitude, 'p_radius_km': radiusKm, ..._filterParams(f)}) as List;
+    return [for (final r in rows.cast<Map>()) _mapTrip(r)]
+        .where((t) => (!f.instantOnly || t.instant) && (f.maxPrice == null || t.price <= f.maxPrice!))
+        .toList();
+  }
+
+  static PlaceKind _placeKind(String? k) => switch (k) {
+        'city' => PlaceKind.city,
+        'garage' => PlaceKind.garage,
+        'meeting_point' => PlaceKind.meetingPoint,
+        'landmark' => PlaceKind.landmark,
+        'saved' => PlaceKind.saved,
+        _ => PlaceKind.address,
+      };
+
+  @override
+  Future<List<GeoPlace>> searchPlaces(String q, {LatLng? near}) async {
+    final rows = await _rpc('search_places', {'p_q': q.trim(), 'p_lat': near?.latitude, 'p_lon': near?.longitude, 'p_limit': 12}) as List;
+    return [
+      for (final r in rows.cast<Map>())
+        GeoPlace(
+          name: r['name'] as String,
+          label: (r['city_name'] as String?) ?? '',
+          point: LatLng(_num(r['lat']), _num(r['lon'])),
+          kind: _placeKind(r['kind'] as String?),
+          city: r['kind'] == 'city' ? r['name'] as String : cityNames[r['city_id']],
+          distanceKm: r['distance_km'] == null ? null : _num(r['distance_km']),
+        ),
+    ];
+  }
+
+  /// طلب لدالة الخرائط بالسيرفر (المفاتيح هونيك، والكاش وحد الطلبات كمان).
+  Future<Map<String, dynamic>> _geo(Map<String, dynamic> body) async {
+    try {
+      final res = await _c.functions.invoke('geo', body: {...body, 'lang': 'ar'}).timeout(const Duration(seconds: 15));
+      return Map<String, dynamic>.from(res.data as Map);
+    } on FunctionException catch (e) {
+      throw switch (e.status) {
+        429 => AppException('RATE_LIMITED', AppException.messages['RATE_LIMITED']!),
+        400 => AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!),
+        401 => const AppException('NOT_AUTHENTICATED', 'لازم تسجّل دخول أول'),
+        _ => AppException('MAP_SERVICE_DOWN', AppException.messages['MAP_SERVICE_DOWN']!),
+      };
+    }
+  }
+
+  static GeoPlace? _geoPlace(dynamic j) {
+    if (j is! Map) return null;
+    final lat = j['lat'], lon = j['lon'];
+    if (lat is! num || lon is! num) return null;
+    return GeoPlace(name: '${j['name']}', label: '${j['label'] ?? ''}', point: LatLng(lat.toDouble(), lon.toDouble()), kind: PlaceKind.address);
+  }
+
+  @override
+  Future<List<GeoPlace>> geocodeSuggest(String q, {LatLng? near}) async {
+    if (q.trim().length < 3) return const [];
+    final j = await _geo({'op': 'autocomplete', 'q': q.trim(), if (near != null) 'near': {'lat': near.latitude, 'lon': near.longitude}});
+    return (j['results'] as List? ?? const []).map(_geoPlace).whereType<GeoPlace>().toList();
+  }
+
+  @override
+  Future<GeoPlace?> reverseGeocode(LatLng at) async {
+    final j = await _geo({'op': 'reverse', 'lat': at.latitude, 'lon': at.longitude});
+    return _geoPlace(j['result']);
+  }
+
+  @override
+  Future<List<RouteOption>> route(List<LatLng> points, {bool alternatives = true}) async {
+    try {
+      final j = await _geo({
+        'op': 'route',
+        'points': [for (final p in points) {'lat': p.latitude, 'lon': p.longitude}],
+        'alternatives': alternatives,
+      });
+      final routes = [
+        for (final r in (j['routes'] as List? ?? const []).cast<Map>())
+          RouteOption(
+            line: [for (final c in (r['geometry'] as List)) LatLng(_num((c as List)[0]), _num(c[1]))],
+            meters: (r['distance_m'] as num).toInt(),
+            seconds: (r['duration_s'] as num).toInt(),
+            summary: (r['summary'] as String?) ?? '',
+          ),
+      ];
+      if (routes.isEmpty) throw const AppException('NO_ROUTE', 'ما في طريق بين النقطتين');
+      return routes;
+    } on AppException catch (e) {
+      if (e.code == 'NO_ROUTE' || e.code == 'INVALID_INPUT') rethrow;
+      // المزود ما رد: مسار تقريبي بدل ما توقف الشاشة
+      return [approximateRoute(points)];
+    } catch (_) {
+      return [approximateRoute(points)];
+    }
+  }
+
+  @override
+  Future<(String, double)?> nearestCity(LatLng at) async {
+    final rows = await _rpc('nearest_city', {'p_lat': at.latitude, 'p_lon': at.longitude}) as List;
+    if (rows.isEmpty) return null;
+    final r = rows.first as Map;
+    return ((r['name'] as String?) ?? cityNames[r['id']] ?? '', _num(r['distance_km']));
+  }
+
+  @override
+  Future<List<CityActivity>> cityActivity() async {
+    final rows = await _rpc('city_activity', {'p_days': 7}) as List;
+    return [for (final r in rows.cast<Map>()) CityActivity(r['name'] as String, LatLng(_num(r['lat']), _num(r['lon'])), (r['departures'] as num).toInt())];
+  }
+
+  @override
+  Future<List<GeoPlace>> cityPlaces(String city) async {
+    final rows = await _rpc('city_places', {'p_city': _cid(city)}) as List;
+    return [
+      for (final r in rows.cast<Map>())
+        GeoPlace(name: r['name'] as String, label: city, point: LatLng(_num(r['lat']), _num(r['lon'])), kind: _placeKind(r['kind'] as String?), city: city),
+    ];
+  }
+
+  @override
+  Future<List<SavedPlace>> myPlaces() async {
+    final rows = await _rpc('my_places') as List;
+    return [
+      for (final r in rows.cast<Map>())
+        SavedPlace(id: r['id'] as String, label: r['label'] as String, kind: r['kind'] as String, point: LatLng(_num(r['lat']), _num(r['lon'])), address: r['address'] as String?),
+    ];
+  }
+
+  @override
+  Future<SavedPlace> savePlace(String label, LatLng at, {String kind = 'other', String? address}) async {
+    final id = await _rpc('save_place', {'p_label': label.trim(), 'p_lat': at.latitude, 'p_lon': at.longitude, 'p_kind': kind, 'p_address': address}) as String;
+    return SavedPlace(id: id, label: label.trim(), kind: kind, point: at, address: address);
+  }
+
+  @override
+  Future<void> deletePlace(String id) => _rpc('delete_place', {'p_id': id});
+
+  @override
+  Future<void> setTripPoints(Trip t, {LatLng? pickup, LatLng? dropoff}) => _rpc('set_trip_points', {
+        'p_trip': t.id,
+        'p_pickup_lat': pickup?.latitude,
+        'p_pickup_lon': pickup?.longitude,
+        'p_dropoff_lat': dropoff?.latitude,
+        'p_dropoff_lon': dropoff?.longitude,
+      });
+
+  @override
+  Future<(LatLng?, LatLng?)> tripPoints(Trip t) async {
+    final j = Map<String, dynamic>.from(await _rpc('trip_points', {'p_trip': t.id}) as Map);
+    LatLng? pt(dynamic v) => v is Map ? LatLng(_num(v['lat']), _num(v['lon'])) : null;
+    return (pt(j['pickup']), pt(j['dropoff']));
+  }
 
   // ── تحويل البيانات ─────────────────────────────────────────────────
   static String _cid(String name) => cityIds[name] ?? (throw const AppException('INVALID_ROUTE', 'الطريق مو صحيح، تأكد من المدن والوقفات'));

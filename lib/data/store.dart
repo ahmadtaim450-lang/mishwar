@@ -1,8 +1,12 @@
 // حالة التطبيق: الحجوزات، الرحلات المنشورة، وتوليد رحلات منطقية لكل طريق.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../map/models.dart';
 import 'mock.dart';
 import '../core/errors.dart';
 import 'backend.dart';
@@ -603,6 +607,98 @@ class Store extends ChangeNotifier {
         notifyListeners();
       });
 
+
+  // ── الخرائط ────────────────────────────────────────────────────────
+  final savedPlaces = <SavedPlace>[];
+  final recentPlaces = <GeoPlace>[];
+  bool mapDark = false;
+  bool _mapPrefsLoaded = false;
+
+  /// تفضيلات الخريطة وآخر الأماكن (محفوظة على الجهاز).
+  Future<void> loadMapPrefs() async {
+    if (_mapPrefsLoaded) return;
+    _mapPrefsLoaded = true;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      mapDark = sp.getBool('map.dark') ?? false;
+      final raw = sp.getString('map.recent');
+      if (raw != null) {
+        recentPlaces
+          ..clear()
+          ..addAll((jsonDecode(raw) as List).map((e) => GeoPlace.fromJson(Map<String, dynamic>.from(e as Map))).whereType<GeoPlace>());
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _saveMapPrefs() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setBool('map.dark', mapDark);
+      await sp.setString('map.recent', jsonEncode([for (final p in recentPlaces) p.toJson()]));
+    } catch (_) {}
+  }
+
+  void setMapDark(bool v) {
+    mapDark = v;
+    notifyListeners();
+    unawaited(_saveMapPrefs());
+  }
+
+  void addRecentPlace(GeoPlace p) {
+    recentPlaces.removeWhere((e) => e.name == p.name && (e.point.latitude - p.point.latitude).abs() < 1e-4 && (e.point.longitude - p.point.longitude).abs() < 1e-4);
+    recentPlaces.insert(0, p);
+    if (recentPlaces.length > 8) recentPlaces.removeRange(8, recentPlaces.length);
+    notifyListeners();
+    unawaited(_saveMapPrefs());
+  }
+
+  void clearRecentPlaces() {
+    recentPlaces.clear();
+    notifyListeners();
+    unawaited(_saveMapPrefs());
+  }
+
+  Future<List<MapTrip>> mapTrips(GeoBounds area, MapFilter f, {LatLng? me}) => _guard(() => backend.mapTrips(area, f, me: me));
+  Future<List<MapTrip>> tripsNear(LatLng at, double radiusKm, MapFilter f) => _guard(() => backend.tripsNear(at, radiusKm, f));
+  Future<List<GeoPlace>> searchPlaces(String q, {LatLng? near}) => _guard(() => backend.searchPlaces(q, near: near));
+  Future<List<GeoPlace>> geocodeSuggest(String q, {LatLng? near}) => _guard(() => backend.geocodeSuggest(q, near: near));
+  Future<GeoPlace?> reverseGeocode(LatLng at) => _guard(() => backend.reverseGeocode(at));
+  Future<List<RouteOption>> route(List<LatLng> pts, {bool alternatives = true}) => _guard(() => backend.route(pts, alternatives: alternatives));
+  Future<(String, double)?> nearestCity(LatLng at) => _guard(() => backend.nearestCity(at));
+  Future<List<CityActivity>> cityActivity() => _guard(() => backend.cityActivity());
+  Future<List<GeoPlace>> cityPlaces(String city) => _guard(() => backend.cityPlaces(city));
+  Future<void> setTripPoints(Trip t, {LatLng? pickup, LatLng? dropoff}) => _guard(() => backend.setTripPoints(t, pickup: pickup, dropoff: dropoff));
+  Future<(LatLng?, LatLng?)> tripPoints(Trip t) => _guard(() => backend.tripPoints(t));
+
+  Future<void> refreshPlaces() => _guard(() async {
+        final list = await backend.myPlaces();
+        savedPlaces
+          ..clear()
+          ..addAll(list);
+        notifyListeners();
+      });
+
+  Future<SavedPlace> savePlace(String label, LatLng at, {String kind = 'other', String? address}) => _guard(() async {
+        final p = await backend.savePlace(label, at, kind: kind, address: address);
+        await refreshPlaces();
+        return p;
+      });
+
+  Future<void> deletePlace(SavedPlace p) => _guard(() async {
+        await backend.deletePlace(p.id);
+        await refreshPlaces();
+      });
+
+  /// الرحلة الكاملة من علامة على الخريطة (لفتح صفحة التفاصيل والحجز).
+  Future<Trip?> tripOf(MapTrip m) => _guard(() async {
+        final list = await backend.searchTrips(m.board, m.to, dayOffset(m.departure), 1);
+        for (final t in list) {
+          if (t.id == m.tripId) return t;
+        }
+        return null;
+      });
+
   // ── أدوات ──────────────────────────────────────────────────────────
   Future<T> _guard<T>(Future<T> Function() f) async {
     try {
@@ -636,4 +732,17 @@ String normalizePhone(String raw) {
   if (d.startsWith('0')) d = d.substring(1);
   if (!RegExp(r'^9[0-9]{8}$').hasMatch(d)) throw const AppException('INVALID_PHONE', 'رقم الموبايل مو صحيح، لازم يبلّش بـ 9 ويكون 9 أرقام');
   return '+963$d';
+}
+
+/// كم يوم بين اليوم (بتوقيت دمشق) ويوم موعد معيّن.
+int dayOffset(DateTime utc) {
+  final n = DateTime.now().toUtc().add(const Duration(hours: 3));
+  final d = utc.toUtc().add(const Duration(hours: 3));
+  return DateTime.utc(d.year, d.month, d.day).difference(DateTime.utc(n.year, n.month, n.day)).inDays;
+}
+
+/// "07:30" بتوقيت دمشق.
+String hmDamascus(DateTime utc) {
+  final d = utc.toUtc().add(const Duration(hours: 3));
+  return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }

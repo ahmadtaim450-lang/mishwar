@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'package:latlong2/latlong.dart';
+import '../map/models.dart';
 import 'mock.dart';
 import 'store.dart';
 
@@ -56,4 +58,23 @@ abstract class Backend {
   Future<void> markNotificationsRead();
   Future<void> registerDevice(String token, String platform);
   Future<void> unregisterDevice(String token);
+
+  // الخرائط
+  /// الرحلات ضمن منطقة (نقطة صعود لكل مدينة على الطريق)، مرتبة حسب القرب من [me].
+  Future<List<MapTrip>> mapTrips(GeoBounds area, MapFilter f, {LatLng? me});
+  Future<List<MapTrip>> tripsNear(LatLng at, double radiusKm, MapFilter f);
+  /// بحث محلي سريع: مدن، نقاط تجمع، وأماكني.
+  Future<List<GeoPlace>> searchPlaces(String q, {LatLng? near});
+  /// اقتراحات عناوين من مزود الخرائط (عن طريق السيرفر).
+  Future<List<GeoPlace>> geocodeSuggest(String q, {LatLng? near});
+  Future<GeoPlace?> reverseGeocode(LatLng at);
+  Future<List<RouteOption>> route(List<LatLng> points, {bool alternatives = true});
+  Future<(String, double)?> nearestCity(LatLng at);
+  Future<List<CityActivity>> cityActivity();
+  Future<List<GeoPlace>> cityPlaces(String city);
+  Future<List<SavedPlace>> myPlaces();
+  Future<SavedPlace> savePlace(String label, LatLng at, {String kind = 'other', String? address});
+  Future<void> deletePlace(String id);
+  Future<void> setTripPoints(Trip t, {LatLng? pickup, LatLng? dropoff});
+  Future<(LatLng?, LatLng?)> tripPoints(Trip t);
 }

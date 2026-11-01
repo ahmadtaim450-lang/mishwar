@@ -5,6 +5,7 @@ import '../data/store.dart';
 import '../data/location.dart';
 import '../widgets/common.dart';
 import 'trip.dart';
+import 'map_explore.dart';
 
 export 'trip.dart' show WomenRidesScreen;
 
@@ -144,7 +145,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
       appBar: TopBar(
         title: '${widget.from} ← ${widget.to}',
         sub: '${dayLabel(widget.day)} · ${paxLabel(widget.pax)} · ${roadKm(widget.from, widget.to)} كم',
-        actions: [SquareBtn(Icons.tune_rounded, solid: true, tooltip: 'فلترة', onTap: _openFilters)],
+        actions: [
+          SquareBtn(Icons.map_rounded, tooltip: 'على الخريطة', onTap: () => go(context, MapExploreScreen(focusCity: widget.from, to: widget.to, day: widget.day))),
+          const SizedBox(width: 8),
+          SquareBtn(Icons.tune_rounded, solid: true, tooltip: 'فلترة', onTap: _openFilters),
+        ],
       ),
       body: _loading
           ? ListView(padding: const EdgeInsets.all(20), children: List.generate(4, (_) => const _Skeleton()))

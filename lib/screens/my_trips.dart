@@ -14,6 +14,7 @@ import 'messages.dart';
 import 'profile.dart';
 import 'shell.dart';
 import 'publish.dart' show PublishFlow;
+import 'pick_point.dart';
 import 'driver_join.dart';
 
 class MyTripsScreen extends StatefulWidget {
@@ -167,6 +168,11 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
             if (r.status == 'completed') const Expanded(child: Badge2('الرحلة خلصت ✓')),
           ]),
         ),
+        if (r.status == 'scheduled')
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Btn('حدد نقطة التجمع على الخريطة', kind: BtnKind.white, icon: Icons.pin_drop_rounded, onTap: () => go(context, PickPointScreen(r.t))),
+          ),
         const SizedBox(height: 12),
         if (r.reqs.isEmpty && r.status == 'scheduled')
           const Padding(

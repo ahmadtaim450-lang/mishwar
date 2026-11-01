@@ -7,6 +7,7 @@ import '../data/location.dart';
 import '../widgets/common.dart';
 import '../widgets/dest_map.dart';
 import 'search.dart';
+import 'map_explore.dart';
 import 'messages.dart';
 import 'my_trips.dart';
 import 'driver_join.dart' show HowWeVerifyScreen;
@@ -187,6 +188,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 Enter(delay: 220, child: _kindCard()),
                 const SizedBox(height: 24),
                 DestinationsMap(from: _from, day: _day, onSearch: (city) => _search(_from, city)),
+                const SizedBox(height: 12),
+                CardBox(
+                  onTap: () => go(context, MapExploreScreen(day: _day)),
+                  child: const Row(children: [
+                    Icon(Icons.map_rounded, color: C.primary),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('استكشف الرحلات على الخريطة', style: T.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text('الرحلات القريبة منك، نقاط التجمع، والمسارات', style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ]),
+                    ),
+                    Icon(Icons.chevron_left_rounded, color: C.muted),
+                  ]),
+                ),
                 if (_s.recent.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   const Text('رجّع آخر بحث', style: T.h3),

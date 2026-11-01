@@ -1,5 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../data/location.dart' show mapsLink;
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../data/store.dart';
@@ -128,6 +131,17 @@ class RouteScreen extends StatefulWidget {
 
 class _RouteScreenState extends State<RouteScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 8600))..repeat();
+  LatLng? _pickup;
+
+  @override
+  void initState() {
+    super.initState();
+    // نقطة التجمع الدقيقة (إذا السائق حددها)
+    Store.i.tripPoints(widget.t).then((p) {
+      if (mounted && p.$1 != null) setState(() => _pickup = p.$1);
+    }).catchError((_) {});
+  }
+
   @override
   void dispose() {
     _c.dispose();
@@ -147,8 +161,22 @@ class _RouteScreenState extends State<RouteScreen> with SingleTickerProviderStat
           margin: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(26)),
           clipBehavior: Clip.antiAlias,
-          child: TripMap(cities: [t.from, ...t.stops, t.to]),
+          child: TripMap(cities: [t.from, ...t.stops, t.to], pickup: _pickup),
         ),
+        if (_pickup != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: CardBox(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              onTap: () => launchUrl(Uri.parse(mapsLink(_pickup!.latitude, _pickup!.longitude)), mode: LaunchMode.externalApplication),
+              child: const Row(children: [
+                Icon(Icons.groups_rounded, color: C.primary),
+                SizedBox(width: 10),
+                Expanded(child: Text('السائق حدد نقطة التجمع بالزبط', style: T.label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Text('افتح بالخرائط', style: TextStyle(fontFamily: kFont, color: C.primary, fontSize: 13.5)),
+              ]),
+            ),
+          ),
         Expanded(
           child: ListView(padding: const EdgeInsets.all(20), children: [
             for (var i = 0; i < stops.length; i++)

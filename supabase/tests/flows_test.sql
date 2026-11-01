@@ -234,6 +234,9 @@ select t.ok((select near_notified_at is not null from public.bookings where id =
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 select t.ok((select count(*) from public.map_trips(35.3, 35.6, 35.7, 36.0)) = 1, 'trip boards inside latakia view');
+select t.ok((public.trip_points((select v from t.ids where k = 'trip')) -> 'pickup' ->> 'lat')::float = 35.515, 'trip pickup point visible');
+select t.ok((public.trip_points((select v from t.ids where k = 'trip')) -> 'dropoff' ->> 'lon')::float = 36.29, 'trip dropoff point visible');
+select t.expect_error($$select public.trip_points(gen_random_uuid())$$, 'TRIP_NOT_FOUND');
 select t.ok((select exact and abs(lat - 35.515) < 0.0001 from public.map_trips(35.3, 35.6, 35.7, 36.0)), 'exact pickup point used');
 select t.ok((select count(*) from public.map_trips(36.0, 36.9, 36.4, 37.4)) = 0, 'nothing in aleppo view');
 select t.ok((select board_city = 'homs' and to_city = 'damascus' and price_syp < 75000 and not exact from public.map_trips(34.6, 36.5, 34.9, 36.9)), 'boarding at a stop = segment price');
