@@ -108,7 +108,7 @@ class _TripMapState extends State<TripMap> {
   @override
   Widget build(BuildContext context) {
     final car = widget.carProgress == null ? null : pointAlong(_route, widget.carProgress!);
-    final done = car == null ? <LatLng>[] : _route.sublist(0, (_route.length * widget.carProgress!).clamp(1, _route.length).toInt())..add(car!.$1);
+    final done = car == null ? <LatLng>[] : (_route.sublist(0, (_route.length * widget.carProgress!).clamp(1, _route.length).toInt())..add(car.$1));
     return FlutterMap(
       mapController: _map,
       options: MapOptions(
