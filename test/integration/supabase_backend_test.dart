@@ -98,6 +98,13 @@ void main() {
     expect(t.plate, isEmpty, reason: 'البحث ما بيكشف رقم السيارة');
     expect((await rider.destinationStats('اللاذقية', 2))['دمشق']?.$1, greaterThanOrEqualTo(1));
 
+    // جزء من الطريق: طرطوس ← حمص ضمن نفس الرحلة
+    final seg = (await rider.searchTrips('طرطوس', 'حمص', 2, 1)).firstWhere((x) => x.id == published.id);
+    expect(seg.isSegment, isTrue);
+    expect(seg.fullFrom, 'اللاذقية');
+    expect(seg.price, lessThan(75000));
+    expect(seg.dep.compareTo('09:30'), greaterThan(0), reason: 'بيوصل لطرطوس بعد الانطلاق');
+
     // الحجز والموافقة
     final b = await rider.requestBooking(t, 2, message: 'معي شنتاية');
     expect(b.status, BStatus.pending);

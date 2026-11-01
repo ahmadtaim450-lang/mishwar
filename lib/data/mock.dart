@@ -26,6 +26,8 @@ class Trip {
   final List<String> stops;
   final int day; // 0 اليوم، 1 بكرا، سالب = بالماضي
   final String plate; // رقم السيارة
+  /// إذا الحجز على جزء من الطريق: بداية ونهاية الرحلة الكاملة
+  final String fullFrom, fullTo;
   const Trip({
     required this.id,
     required this.from,
@@ -45,7 +47,10 @@ class Trip {
     this.stops = const [],
     this.day = 1,
     this.plate = '',
+    this.fullFrom = '',
+    this.fullTo = '',
   });
+  bool get isSegment => (fullFrom.isNotEmpty && fullFrom != from) || (fullTo.isNotEmpty && fullTo != to);
 }
 
 const samer = Person('سامر', 'س', image: 'avatar_samer', rating: 4.9, trips: 38);

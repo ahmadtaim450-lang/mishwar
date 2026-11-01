@@ -162,7 +162,14 @@ class SupabaseBackend implements Backend {
   // ── الحجز ──────────────────────────────────────────────────────────
   @override
   Future<Booking> requestBooking(Trip t, int seats, {bool family = false, String? message}) async {
-    final r = Map<String, dynamic>.from(await _rpc('request_booking', {'p_trip': t.id, 'p_seats': seats, 'p_family': family, 'p_message': message}) as Map);
+    final r = Map<String, dynamic>.from(await _rpc('request_booking', {
+      'p_trip': t.id,
+      'p_seats': seats,
+      'p_family': family,
+      'p_message': message,
+      'p_from': _cid(t.from),
+      'p_to': _cid(t.to),
+    }) as Map);
     return _bookingFrom(await _rpc('booking_details', {'p_booking': r['id']}));
   }
 
@@ -199,9 +206,12 @@ class SupabaseBackend implements Backend {
           final ride = MyRide(_trip(r, driver: driver, car: me?.car ?? '', plate: me?.plate ?? ''), status: r['status'] as String);
           for (final b in (r['bookings'] as List).cast<Map>()) {
             final name = (b['rider_name'] as String?) ?? '';
+            final seg = b['from_city'] != r['from_city'] || b['to_city'] != r['to_city'];
+            final segText = seg ? 'من ${cityNames[b['from_city']] ?? ''} لـ${cityNames[b['to_city']] ?? ''}' : '';
+            final msg = (b['message'] as String?) ?? (b['family'] == true ? 'حجز عائلي' : '');
             ride.reqs.add(RideReq(
               Person(name, name.isEmpty ? '؟' : name.characters.first, id: b['rider_id'] as String, rating: _num(b['rider_rating'])),
-              (b['message'] as String?) ?? (b['family'] == true ? 'حجز عائلي' : ''),
+              [segText, msg].where((x) => x.isNotEmpty).join(' · '),
               seats: (b['seats'] as num).toInt(),
               id: b['id'] as String,
               state: switch (b['status']) { 'pending' => 0, 'rejected' => 2, _ => 1 },
@@ -414,6 +424,8 @@ class SupabaseBackend implements Backend {
       stops: [for (final s in ((r['stops'] as List?) ?? const [])) cityNames[s] ?? '$s'],
       day: _dayOf(dep),
       plate: plate ?? '',
+      fullFrom: cityNames[r['full_from']] ?? '',
+      fullTo: cityNames[r['full_to']] ?? '',
     );
   }
 

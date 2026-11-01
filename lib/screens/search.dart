@@ -332,7 +332,16 @@ class TripCard extends StatelessWidget {
                 ]),
               ),
             ]),
-            if (t.stops.isNotEmpty)
+            if (t.isSegment)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(children: [
+                  const Icon(Icons.call_split_rounded, size: 16, color: C.primary),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text('ضمن رحلة ${t.fullFrom} ← ${t.fullTo} · بتنزل بـ${t.to}', style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                ]),
+              )
+            else if (t.stops.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(children: [

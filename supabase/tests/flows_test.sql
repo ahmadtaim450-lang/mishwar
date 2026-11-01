@@ -130,6 +130,25 @@ select t.ok((select stops from public.search_trips('latakia', 'damascus', (selec
 select t.ok((select trips from public.destination_stats('latakia', (select v from t.vals where k = 'day')::date) where to_city = 'damascus') = 1, 'destination stats');
 select t.expect_error($$select * from public.search_trips('latakia', 'latakia', current_date)$$, 'INVALID_INPUT');
 
+\echo '▶ الحجز على جزء من الطريق'
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select t.ok((select count(*) from public.search_trips('tartus', 'homs', (select v from t.vals where k = 'day')::date)) = 1, 'segment tartus→homs found');
+select t.ok((select count(*) from public.search_trips('homs', 'tartus', (select v from t.vals where k = 'day')::date)) = 0, 'reverse segment not found');
+select t.ok((select price_syp from public.search_trips('tartus', 'homs', (select v from t.vals where k = 'day')::date)) < 75000, 'segment cheaper than full');
+select t.ok((select departure_at from public.search_trips('tartus', 'homs', (select v from t.vals where k = 'day')::date))
+            > (select departure_at from public.trips where id = (select v from t.ids where k = 'trip')), 'segment departs later');
+select t.ok((select full_from from public.search_trips('tartus', 'homs', (select v from t.vals where k = 'day')::date)) = 'latakia', 'full route exposed');
+select t.ok((select trips from public.destination_stats('tartus', (select v from t.vals where k = 'day')::date) where to_city = 'damascus') = 1, 'stats from a stop');
+select t.expect_error(format($$select public.request_booking(%L, 1, false, null, 'homs', 'tartus')$$, (select v from t.ids where k = 'trip')), 'INVALID_ROUTE');
+insert into t.ids values ('seg', (public.request_booking((select v from t.ids where k = 'trip'), 1, false, null, 'tartus', 'homs') ->> 'id')::uuid);
+select t.ok((public.booking_details((select v from t.ids where k = 'seg')) -> 'trip' ->> 'from_city') = 'tartus', 'ticket shows rider segment');
+select t.ok((public.booking_details((select v from t.ids where k = 'seg')) ->> 'total')::int < 75000, 'segment total');
+select public.cancel_booking((select v from t.ids where k = 'seg'));
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+
 \echo '▶ الحجز والموافقة'
 select t.expect_error(format($$select public.request_booking(%L, 4)$$, (select v from t.ids where k = 'trip')), 'NOT_ENOUGH_SEATS');
 insert into t.ids values ('b1', (public.request_booking((select v from t.ids where k = 'trip'), 2, false, 'معي شنتاية صغيرة') ->> 'id')::uuid);

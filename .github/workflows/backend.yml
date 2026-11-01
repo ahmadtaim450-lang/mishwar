@@ -74,6 +74,7 @@ jobs:
           flutter test test/integration --reporter expanded --dart-define=SUPABASE_TEST_URL="$API_URL" --dart-define=SUPABASE_TEST_ANON="$ANON_KEY" --dart-define=SUPABASE_TEST_SERVICE="$SERVICE_ROLE_KEY" > it.log 2>&1
           status=$?
           tail -20 it.log
+          if grep -qi "skip" it.log; then echo "::error::اختبار التكامل انتجاوز (المفاتيح ما وصلت)"; exit 1; fi
           if [ $status -ne 0 ]; then
             msg=$(grep -E -A4 "was thrown|Expected:|Actual:|Error|Exception|\[E\]" it.log | grep -v "^#[0-9]" | awk '!s[$0]++' | head -80 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error::$msg"
