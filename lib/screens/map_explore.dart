@@ -65,7 +65,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
   List<RouteOption> _routes = const [];
   int _routeIdx = 0;
   bool _routing = false;
-  GeoPlace? _routeFrom, _routeTo;
+  GeoPlace? _routeFrom, _routeDest;
 
   bool get _dark => Store.i.mapDark;
   static const _syriaCenter = LatLng(34.8, 38.3);
@@ -344,7 +344,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
     setState(() {
       _mode = _Sheet.route;
       _routing = true;
-      _routeTo = dest;
+      _routeDest = dest;
       _routes = const [];
       _routeIdx = 0;
     });
@@ -368,12 +368,12 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
   void _clearRoute() => setState(() {
         _routes = const [];
         _routeFrom = null;
-        _routeTo = null;
+        _routeDest = null;
         _mode = _picked == null ? _Sheet.trips : _Sheet.place;
       });
 
   Future<void> _searchTripsOnRoute() async {
-    final a = _routeFrom, b = _routeTo;
+    final a = _routeFrom, b = _routeDest;
     if (a == null || b == null) return;
     final ca = await Store.i.nearestCity(a.point), cb = await Store.i.nearestCity(b.point);
     if (!mounted || ca == null || cb == null) return;
@@ -881,7 +881,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Expanded(child: Text('${_routeFrom?.name ?? ''} ← ${_routeTo?.name ?? ''}', style: T.h3, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text('${_routeFrom?.name ?? ''} ← ${_routeDest?.name ?? ''}', style: T.h3, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 IconButton(tooltip: 'سكّر المسار', onPressed: _clearRoute, icon: const Icon(Icons.close_rounded, color: C.muted)),
               ]),
               const SizedBox(height: 8),
