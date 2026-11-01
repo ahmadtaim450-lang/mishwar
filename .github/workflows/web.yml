@@ -95,7 +95,20 @@ jobs:
       - run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --base-href /mishwar/
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: flutter build web --release --base-href /mishwar/ --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+      - name: Add family tracking page and admin panel
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp -r site/track site/admin site/vendor build/web/
+          # مفتاح anon عام بطبيعته (الحماية من RLS)، ما في أسرار هون
+          printf 'window.MISHWAR = { url: "%s", anon: "%s" };\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > build/web/config.js
+          ls build/web
 
       - uses: actions/configure-pages@v5
         with:

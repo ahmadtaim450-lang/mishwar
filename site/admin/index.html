@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>لوحة إدارة مشوار</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lalezar&display=swap" rel="stylesheet">
+<script src="../config.js"></script>
+<script src="../vendor/supabase.js"></script>
+<style>
+  :root { --p: #0AAFF5; --d: #064854; --y: #FFD25E; --bg: #F3F5F5; --m: #5E7676; --line: #EEF1F1; --border: #DDE3E3; --danger: #9A2A17; --dbg: #FDE6E2; --ok: #1E9E5A; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--d); font-family: 'Lalezar', system-ui, sans-serif; }
+  header { background: var(--d); color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 5; }
+  header h1 { margin: 0; font-weight: 400; font-size: 24px; }
+  header .who { margin-inline-start: auto; font-size: 14px; opacity: .85; }
+  nav { display: flex; gap: 6px; padding: 12px 24px 0; flex-wrap: wrap; }
+  nav button { border: 0; background: #E4EAEA; color: var(--d); padding: 10px 16px; border-radius: 12px; font: inherit; font-size: 15px; cursor: pointer; }
+  nav button[aria-selected="true"] { background: #fff; box-shadow: 0 2px 10px rgba(6,72,84,.08); }
+  nav .count { background: var(--y); border-radius: 10px; padding: 0 7px; margin-inline-start: 6px; font-size: 13px; }
+  main { padding: 16px 24px 40px; max-width: 1200px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 20px; padding: 16px 18px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .list .item { display: flex; gap: 10px; align-items: center; padding: 12px; border-radius: 14px; cursor: pointer; border: 2px solid transparent; background: none; width: 100%; text-align: inherit; font: inherit; color: inherit; }
+  .list .item:hover { background: var(--bg); }
+  .list .item[aria-current="true"] { border-color: var(--p); }
+  .avatar { width: 40px; height: 40px; border-radius: 40px; background: var(--p); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .muted { color: var(--m); font-size: 13.5px; }
+  .badge { display: inline-block; border-radius: 10px; padding: 2px 10px; font-size: 13px; background: #E3F5FE; }
+  .badge.warn { background: #FFF4D6; color: #7A4F00; }
+  .badge.ok { background: #DDF5E7; color: #146B3C; }
+  .badge.bad { background: var(--dbg); color: var(--danger); }
+  h2 { font-weight: 400; margin: 0 0 4px; font-size: 22px; }
+  h3 { font-weight: 400; margin: 14px 0 8px; font-size: 17px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 8px 0; }
+  dt { color: var(--m); } dd { margin: 0; }
+  .docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .doc { background: var(--bg); border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; display: block; }
+  .doc img { width: 100%; height: 110px; object-fit: cover; display: block; background: #DDE3E3; }
+  .doc span { display: block; padding: 6px 10px; font-size: 13px; }
+  .doc.missing { border: 2px dashed var(--danger); display: flex; align-items: center; justify-content: center; height: 140px; color: var(--danger); }
+  label { display: block; margin: 10px 0 4px; font-size: 14px; }
+  input, textarea, select { width: 100%; border: 1.5px solid var(--border); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 15px; background: #fff; color: var(--d); }
+  textarea { min-height: 70px; resize: vertical; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .btn { border: 0; border-radius: 14px; padding: 11px 18px; font: inherit; font-size: 15px; cursor: pointer; background: var(--p); color: #fff; }
+  .btn.dark { background: var(--d); } .btn.ok { background: var(--ok); } .btn.bad { background: var(--dbg); color: var(--danger); } .btn.ghost { background: #fff; color: var(--d); border: 1.5px solid var(--border); }
+  .btn:disabled { opacity: .5; cursor: wait; }
+  .login { max-width: 380px; margin: 10vh auto; }
+  .toast { position: fixed; bottom: 20px; inset-inline-start: 50%; transform: translateX(50%); background: var(--d); color: #fff; padding: 12px 18px; border-radius: 14px; display: none; z-index: 10; }
+  .empty { text-align: center; padding: 40px; color: var(--m); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: start; padding: 8px; border-bottom: 1.5px solid var(--line); font-weight: 400; }
+  th { color: var(--m); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+  var cfg = window.MISHWAR || {};
+  var app = document.getElementById('app');
+  if (!cfg.url || !cfg.anon || !window.supabase) {
+    app.innerHTML = '<div class="card login"><h2>اللوحة مو مفعّلة</h2><p class="muted">لازم تنضاف SUPABASE_URL و SUPABASE_ANON_KEY بإعدادات النشر.</p></div>';
+    return;
+  }
+  var sb = window.supabase.createClient(cfg.url, cfg.anon);
+
+  // ── أدوات DOM آمنة (كل النصوص textContent، ما في innerHTML لبيانات المستخدمين) ──
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'on') Object.keys(attrs.on).forEach(function (ev) { e.addEventListener(ev, attrs.on[ev]); });
+      else if (k === 'text') e.textContent = attrs.text;
+      else if (attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== false) e.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { if (c != null) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 3500); }
+  function err(e) {
+    var m = (e && (e.message || e.error_description)) || 'خطأ';
+    var map = { FORBIDDEN: 'ما عندك صلاحية', DOCUMENTS_MISSING: 'في أوراق ناقصة بالطلب', INVALID_STATE: 'هالخطوة مو ممكنة بهالحالة', NOT_FOUND: 'مو موجود' };
+    Object.keys(map).forEach(function (k) { if (m.indexOf(k) >= 0) m = map[k]; });
+    toast(m);
+  }
+  function fmt(iso) { return iso ? new Date(iso).toLocaleString('ar-SY', { timeZone: 'Asia/Damascus', dateStyle: 'medium', timeStyle: 'short' }) : '—'; }
+  var CITY = { damascus: 'دمشق', aleppo: 'حلب', latakia: 'اللاذقية', homs: 'حمص', tartus: 'طرطوس', hama: 'حماة', jableh: 'جبلة', daraa: 'درعا', banias: 'بانياس', idlib: 'إدلب', raqqa: 'الرقة', deir_ez_zor: 'دير الزور', hasakah: 'الحسكة', qamishli: 'القامشلي', sweida: 'السويداء', palmyra: 'تدمر', salamiyah: 'السلمية', safita: 'صافيتا', qardaha: 'القرداحة', manbij: 'منبج', quneitra: 'القنيطرة', nabk: 'النبك' };
+  var DOCS = { selfie: 'صورة مع الهوية', id_front: 'الهوية · أمام', id_back: 'الهوية · خلف', license: 'شهادة السواقة', record: 'لا حكم عليه', car_front: 'السيارة من قدّام', car_side: 'السيارة من الجنب', car_inside: 'السيارة من جوا', mechanic: 'الميكانيك' };
+  var STATUS = { submitted: ['جديد', 'warn'], reviewing: ['قيد المراجعة', 'warn'], interview: ['مقابلة', ''], approved: ['مقبول', 'ok'], rejected: ['مرفوض', 'bad'], cancelled: ['ملغى', 'bad'] };
+  function badge(s) { var x = STATUS[s] || [s, '']; return el('span', { 'class': 'badge ' + x[1], text: x[0] }); }
+
+  var me = null, tab = 'apps', selected = null;
+
+  // ── الدخول ──
+  function loginView() {
+    var email = el('input', { type: 'email', autocomplete: 'username', required: true, id: 'email' });
+    var pass = el('input', { type: 'password', autocomplete: 'current-password', required: true, id: 'pass' });
+    var btn = el('button', { 'class': 'btn', type: 'submit', text: 'دخول' });
+    var form = el('form', { 'class': 'card login', on: { submit: function (ev) {
+      ev.preventDefault(); btn.disabled = true;
+      sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value }).then(function (r) {
+        btn.disabled = false;
+        if (r.error) return toast('الإيميل أو كلمة السر غلط');
+        boot();
+      });
+    } } }, [el('h2', { text: 'لوحة إدارة مشوار' }), el('p', { 'class': 'muted', text: 'للفريق بس. الحسابات بتنعطى من الإدارة.' }),
+      el('label', { 'for': 'email', text: 'الإيميل' }), email, el('label', { 'for': 'pass', text: 'كلمة السر' }), pass, el('div', { 'class': 'actions' }, [btn])]);
+    app.replaceChildren(form);
+  }
+
+  function shell(counts) {
+    var tabs = [['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null]];
+    if (me.role === 'admin') tabs.push(['audit', 'سجل العمليات', null]);
+    return [
+      el('header', {}, [el('h1', { text: 'مشوار · الإدارة' }), el('span', { 'class': 'who', text: me.full_name + ' · ' + (me.role === 'admin' ? 'مدير' : 'مشرف') }),
+        el('button', { 'class': 'btn ghost', on: { click: function () { sb.auth.signOut().then(loginView); } }, text: 'خروج' })]),
+      el('nav', { role: 'tablist' }, tabs.map(function (t) {
+        return el('button', { role: 'tab', 'aria-selected': String(tab === t[0]), on: { click: function () { tab = t[0]; selected = null; render(); } } },
+          [t[1], t[2] ? el('span', { 'class': 'count', text: String(t[2]) }) : null]);
+      })),
+      el('main', { id: 'main' }, [el('div', { 'class': 'empty', text: 'عم نحمّل...' })])
+    ];
+  }
+
+  function boot() {
+    sb.auth.getSession().then(function (s) {
+      if (!s.data.session) return loginView();
+      sb.rpc('my_profile').then(function (r) {
+        if (r.error || !r.data || (r.data.role !== 'admin' && r.data.role !== 'moderator')) {
+          toast('هالحساب ما إلو صلاحية إدارة');
+          return sb.auth.signOut().then(loginView);
+        }
+        me = r.data; render();
+      });
+    });
+  }
+
+  function render() {
+    Promise.all([
+      sb.from('driver_applications').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'reviewing']),
+      sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'open')
+    ]).then(function (r) {
+      app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0 }));
+      ({ apps: appsView, reports: reportsView, drivers: driversView, audit: auditView })[tab]();
+    });
+  }
+  function main() { return document.getElementById('main'); }
+
+  // ── طلبات السائقين ──
+  function appsView() {
+    var filter = el('select', { 'aria-label': 'الحالة', on: { change: load } }, [['active', 'بانتظار إجراء'], ['interview', 'مقابلة'], ['approved', 'مقبول'], ['rejected', 'مرفوض'], ['all', 'الكل']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+    var list = el('div', { 'class': 'card list' });
+    var detail = el('div', { 'class': 'card' }, [el('div', { 'class': 'empty', text: 'اختار طلب من القائمة' })]);
+    main().replaceChildren(el('div', { 'class': 'grid' }, [el('div', {}, [el('div', { 'class': 'card' }, [filter]), list]), detail]));
+    function load() {
+      var q = sb.from('driver_applications').select('id, status, city_id, created_at, interview_at, interview_place, admin_note, user_id, user:profiles!driver_applications_user_id_fkey(full_name, gender), vehicle:vehicles(make_model, year, color, plate, seats), application_documents(kind, storage_path)').order('created_at', { ascending: true }).limit(200);
+      var f = filter.value;
+      if (f === 'active') q = q.in('status', ['submitted', 'reviewing']); else if (f !== 'all') q = q.eq('status', f);
+      q.then(function (r) {
+        if (r.error) return err(r.error);
+        list.replaceChildren();
+        if (!r.data.length) list.appendChild(el('div', { 'class': 'empty', text: 'ما في طلبات' }));
+        r.data.forEach(function (a) {
+          var item = el('button', { 'class': 'item', 'aria-current': String(selected === a.id), on: { click: function () { selected = a.id; Array.prototype.forEach.call(list.children, function (c) { c.setAttribute('aria-current', 'false'); }); item.setAttribute('aria-current', 'true'); showApp(a, detail, load); } } },
+            [el('span', { 'class': 'avatar', text: (a.user && a.user.full_name || '؟').charAt(0) }),
+             el('span', { style: 'flex:1' }, [el('div', { text: a.user ? a.user.full_name : '' }), el('div', { 'class': 'muted', text: (CITY[a.city_id] || a.city_id) + ' · ' + a.application_documents.length + '/9 أوراق' })]), badge(a.status)]);
+          list.appendChild(item);
+          if (selected === a.id) showApp(a, detail, load);
+        });
+      });
+    }
+    load();
+  }
+
+  function showApp(a, box, reload) {
+    var v = a.vehicle || {};
+    var docs = el('div', { 'class': 'docs' });
+    var at = el('input', { type: 'datetime-local', id: 'at' });
+    if (a.interview_at) at.value = new Date(new Date(a.interview_at).getTime() + 3 * 3600e3).toISOString().slice(0, 16);
+    var place = el('input', { id: 'place', value: a.interview_place || ('نقطة مشوار · ' + (CITY[a.city_id] || '')) });
+    var note = el('textarea', { id: 'note', placeholder: 'ملاحظة بتوصل للسائق (اختياري)' });
+    var phone = el('dd', { text: '…' });
+    sb.from('profile_private').select('phone').eq('id', a.user_id).maybeSingle().then(function (r) { phone.textContent = (r.data && r.data.phone) || '—'; });
+
+    var have = {}; a.application_documents.forEach(function (d) { have[d.kind] = d.storage_path; });
+    var paths = Object.keys(have).map(function (k) { return have[k]; });
+    var urls = {};
+    (paths.length ? sb.storage.from('driver-docs').createSignedUrls(paths, 600) : Promise.resolve({ data: [] })).then(function (r) {
+      (r.data || []).forEach(function (u) { urls[u.path] = u.signedUrl; });
+      docs.replaceChildren.apply(docs, Object.keys(DOCS).map(function (k) {
+        if (!have[k]) return el('div', { 'class': 'doc missing', text: 'ناقص: ' + DOCS[k] });
+        var u = urls[have[k]];
+        return el('a', { 'class': 'doc', href: u || '#', target: '_blank', rel: 'noopener noreferrer' }, [el('img', { src: u || '', alt: DOCS[k], loading: 'lazy' }), el('span', { text: DOCS[k] })]);
+      }));
+    });
+
+    function act(status, label, cls) {
+      var b = el('button', { 'class': 'btn ' + (cls || ''), text: label, on: { click: function () {
+        if ((status === 'rejected' || status === 'approved') && !confirm('أكيد: ' + label + '؟')) return;
+        var iso = at.value ? new Date(at.value + ':00+03:00').toISOString() : null;
+        if (status === 'interview' && !iso) return toast('حدد موعد المقابلة أول');
+        b.disabled = true;
+        sb.rpc('admin_review_application', { p_application: a.id, p_status: status, p_note: note.value || null, p_interview_at: iso, p_place: place.value || null }).then(function (r) {
+          b.disabled = false;
+          if (r.error) return err(r.error);
+          toast('تم: ' + label); render();
+        });
+      } } });
+      return b;
+    }
+    var actions = [];
+    if (a.status === 'submitted') actions.push(act('reviewing', 'بلّش المراجعة', 'dark'));
+    if (a.status === 'submitted' || a.status === 'reviewing') actions.push(act('interview', 'الأوراق تمام · حدد مقابلة'));
+    if (a.status === 'interview') { actions.push(act('approved', 'نجح بالمقابلة · فعّل السائق', 'ok')); actions.push(act('interview', 'غيّر الموعد', 'ghost')); }
+    if (['submitted', 'reviewing', 'interview'].indexOf(a.status) >= 0) actions.push(act('rejected', 'ارفض الطلب', 'bad'));
+
+    box.replaceChildren(
+      el('h2', { text: a.user ? a.user.full_name : '' }), el('div', {}, [badge(a.status), ' ', el('span', { 'class': 'muted', text: 'انبعت ' + fmt(a.created_at) })]),
+      el('dl', {}, [el('dt', { text: 'الموبايل' }), phone, el('dt', { text: 'الجنس' }), el('dd', { text: a.user && a.user.gender === 'female' ? 'أنثى' : 'ذكر' }),
+        el('dt', { text: 'المدينة' }), el('dd', { text: CITY[a.city_id] || a.city_id }), el('dt', { text: 'السيارة' }), el('dd', { text: (v.make_model || '') + ' ' + (v.year || '') + ' · ' + (v.color || '') + ' · ' + (v.seats || '') + ' مقاعد' }),
+        el('dt', { text: 'رقم السيارة' }), el('dd', { text: v.plate || '' }), el('dt', { text: 'المقابلة' }), el('dd', { text: fmt(a.interview_at) + (a.interview_place ? ' · ' + a.interview_place : '') })]),
+      el('h3', { text: 'الأوراق' }), docs,
+      el('h3', { text: 'القرار' }),
+      el('label', { 'for': 'at', text: 'موعد المقابلة (بتوقيت دمشق)' }), at, el('label', { 'for': 'place', text: 'مكان المقابلة' }), place,
+      el('label', { 'for': 'note', text: 'ملاحظة' }), note,
+      el('div', { 'class': 'actions' }, actions.length ? actions : [el('span', { 'class': 'muted', text: 'ما في إجراءات لهالحالة' })])
+    );
+  }
+
+  // ── البلاغات ──
+  function reportsView() {
+    var box = el('div', {});
+    main().replaceChildren(box);
+    sb.from('reports').select('id, reason, details, status, created_at, trip_id, target_id, reporter:profiles!reports_reporter_id_fkey(full_name), target:profiles!reports_target_id_fkey(full_name, driver_status)').order('created_at', { ascending: false }).limit(200).then(function (r) {
+      if (r.error) return err(r.error);
+      if (!r.data.length) return box.appendChild(el('div', { 'class': 'card empty', text: 'ما في بلاغات' }));
+      r.data.forEach(function (x) {
+        var st = x.target ? x.target.driver_status : '';
+        var acts = [];
+        if (x.status === 'open') {
+          acts.push(btn('تمت المراجعة', 'dark', function () { return sb.rpc('admin_resolve_report', { p_report: x.id, p_status: 'reviewed' }); }));
+          acts.push(btn('تجاهل', 'ghost', function () { return sb.rpc('admin_resolve_report', { p_report: x.id, p_status: 'dismissed' }); }));
+        }
+        if (st === 'approved') acts.push(btn('أوقف السائق', 'bad', function () { return sb.rpc('admin_set_driver_status', { p_user: x.target_id, p_status: 'suspended', p_note: x.reason }); }, true));
+        if (st === 'suspended') acts.push(btn('رجّع تفعيلو', 'ok', function () { return sb.rpc('admin_set_driver_status', { p_user: x.target_id, p_status: 'approved', p_note: null }); }, true));
+        box.appendChild(el('div', { 'class': 'card' }, [
+          el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, [el('h2', { text: x.reason }), el('span', { 'class': 'badge ' + (x.status === 'open' ? 'warn' : ''), text: x.status === 'open' ? 'مفتوح' : (x.status === 'reviewed' ? 'تمت المراجعة' : 'متجاهل') }),
+            st === 'suspended' ? el('span', { 'class': 'badge bad', text: 'السائق موقوف' }) : null]),
+          el('div', { 'class': 'muted', text: 'على: ' + (x.target ? x.target.full_name : '') + ' · من: ' + (x.reporter ? x.reporter.full_name : '') + ' · ' + fmt(x.created_at) }),
+          x.details ? el('p', { text: x.details }) : null,
+          el('div', { 'class': 'actions' }, acts)
+        ]));
+      });
+    });
+  }
+  function btn(label, cls, call, confirmIt) {
+    var b = el('button', { 'class': 'btn ' + cls, text: label, on: { click: function () {
+      if (confirmIt && !confirm(label + '؟')) return;
+      b.disabled = true;
+      call().then(function (r) { b.disabled = false; if (r.error) return err(r.error); toast('تم'); render(); });
+    } } });
+    return b;
+  }
+
+  // ── السائقين ──
+  function driversView() {
+    var box = el('div', { 'class': 'card' });
+    main().replaceChildren(box);
+    sb.from('profiles').select('id, full_name, gender, driver_status, rating_avg, rating_count, trips_count, suspended_at').in('driver_status', ['approved', 'suspended']).order('full_name').limit(500).then(function (r) {
+      if (r.error) return err(r.error);
+      if (!r.data.length) return box.appendChild(el('div', { 'class': 'empty', text: 'ما في سائقين موثّقين لسا' }));
+      box.appendChild(el('table', {}, [el('thead', {}, [el('tr', {}, ['الاسم', 'الحالة', 'التقييم', 'الرحلات', ''].map(function (h) { return el('th', { text: h }); }))]),
+        el('tbody', {}, r.data.map(function (d) {
+          return el('tr', {}, [el('td', { text: d.full_name }), el('td', {}, [el('span', { 'class': 'badge ' + (d.driver_status === 'approved' ? 'ok' : 'bad'), text: d.driver_status === 'approved' ? 'فعّال' : 'موقوف' })]),
+            el('td', { text: d.rating_count ? '★ ' + d.rating_avg + ' (' + d.rating_count + ')' : '—' }), el('td', { text: String(d.trips_count) }),
+            el('td', {}, [d.driver_status === 'approved'
+              ? btn('إيقاف', 'bad', function () { return sb.rpc('admin_set_driver_status', { p_user: d.id, p_status: 'suspended', p_note: null }); }, true)
+              : btn('تفعيل', 'ok', function () { return sb.rpc('admin_set_driver_status', { p_user: d.id, p_status: 'approved', p_note: null }); }, true)])]);
+        }))]));
+    });
+  }
+
+  // ── السجل ──
+  function auditView() {
+    var box = el('div', { 'class': 'card' });
+    main().replaceChildren(box);
+    sb.from('audit_log').select('id, actor_id, action, entity, entity_id, meta, created_at').order('id', { ascending: false }).limit(300).then(function (r) {
+      if (r.error) return err(r.error);
+      box.appendChild(el('table', {}, [el('thead', {}, [el('tr', {}, ['الوقت', 'العملية', 'العنصر', 'تفاصيل'].map(function (h) { return el('th', { text: h }); }))]),
+        el('tbody', {}, r.data.map(function (x) {
+          return el('tr', {}, [el('td', { text: fmt(x.created_at) }), el('td', { text: x.action }), el('td', { text: x.entity + ' ' + (x.entity_id || '').slice(0, 8) }), el('td', { 'class': 'muted', text: JSON.stringify(x.meta) })]);
+        }))]));
+    });
+  }
+
+  sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') loginView(); });
+  boot();
+})();
+</script>
+</body>
+</html>
