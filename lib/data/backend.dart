@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'mock.dart';
 import 'store.dart';
 
@@ -19,6 +20,7 @@ abstract class Backend {
   Future<void> completeProfile(String fullName, bool female, {String? music});
   Future<void> updateProfile({String? name, String? music, Map<String, String>? prefs});
   Future<void> requestDeletion();
+  Future<void> uploadAvatar(Uint8List jpeg);
   Future<DriverPublic> driverPublic(Person p);
 
   // البحث

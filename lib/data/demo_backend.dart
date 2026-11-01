@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import '../core/errors.dart';
 import 'backend.dart';
 import 'mock.dart';
@@ -123,6 +124,12 @@ class DemoBackend implements Backend {
     await _wait();
     if (prefs != null) _prefs = Map.of(prefs);
     _me = UserProfile(id: 'me', name: name ?? _me.name, female: _me.female, phone: _me.phone, driverStatus: _driver, music: music ?? _me.music, prefs: _prefs);
+  }
+
+  @override
+  Future<void> uploadAvatar(Uint8List jpeg) async {
+    await _wait();
+    if (jpeg.length > 2 * 1024 * 1024) throw AppException('UPLOAD_FAILED', AppException.messages['UPLOAD_FAILED']!);
   }
 
   @override

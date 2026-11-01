@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/widgets.dart' show StringCharacters;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config.dart';
@@ -91,6 +92,7 @@ class SupabaseBackend implements Backend {
       car: v == null ? null : '${v['make_model']} · ${v['color']}',
       plate: v?['plate'] as String?,
       vehicleId: v?['id'] as String?,
+      photo: _photo(m['avatar_path']),
       rating: _num(m['rating_avg']),
       trips: (m['trips_count'] as num?)?.toInt() ?? 0,
       role: (m['role'] as String?) ?? 'user',
@@ -116,6 +118,26 @@ class SupabaseBackend implements Backend {
 
   @override
   Future<void> requestDeletion() => _rpc('request_account_deletion');
+
+  /// الصورة الشخصية: مجلد المستخدم بالـ avatars، واسم جديد كل مرة لحتى ما يعلق الكاش.
+  @override
+  Future<void> uploadAvatar(Uint8List jpeg) async {
+    final path = '$_uid/avatar-${DateTime.now().millisecondsSinceEpoch}.jpg';
+    try {
+      await _c.storage.from('avatars').uploadBinary(path, jpeg, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
+    } catch (_) {
+      throw const AppException('UPLOAD_FAILED', 'ما قدرنا نرفع الصورة، جرّب مرة تانية');
+    }
+    final old = (await _c.from('profiles').select('avatar_path').eq('id', _uid).single())['avatar_path'] as String?;
+    await _c.from('profiles').update({'avatar_path': path}).eq('id', _uid);
+    if (old != null && old != path) {
+      try {
+        await _c.storage.from('avatars').remove([old]);
+      } catch (_) {}
+    }
+  }
+
+  String? _photo(dynamic path) => path == null || '$path'.isEmpty ? null : _c.storage.from('avatars').getPublicUrl('$path');
 
   @override
   Future<DriverPublic> driverPublic(Person p) async {
@@ -198,7 +220,7 @@ class SupabaseBackend implements Backend {
   Future<List<MyRide>> myRides() async {
     final rows = await _rpc('my_driver_trips') as List;
     final me = await loadProfile();
-    final driver = Person(me?.name ?? '', (me?.name.isNotEmpty ?? false) ? me!.name.characters.first : 'أ', id: me?.id ?? '', rating: me?.rating ?? 0, trips: me?.trips ?? 0);
+    final driver = Person(me?.name ?? '', (me?.name.isNotEmpty ?? false) ? me!.name.characters.first : 'أ', id: me?.id ?? '', photo: me?.photo, rating: me?.rating ?? 0, trips: me?.trips ?? 0);
     return [
       for (final raw in rows)
         () {
@@ -417,7 +439,7 @@ class SupabaseBackend implements Backend {
       seatsTotal: (r['seats_total'] as num?)?.toInt() ?? 0,
       driver: driver ??
           Person(name, name.isEmpty ? '؟' : name.characters.first,
-              id: (r['driver_id'] as String?) ?? '', rating: _num(r['driver_rating']), trips: (r['driver_trips'] as num?)?.toInt() ?? 0),
+              id: (r['driver_id'] as String?) ?? '', photo: _photo(r['driver_avatar']), rating: _num(r['driver_rating']), trips: (r['driver_trips'] as num?)?.toInt() ?? 0),
       car: (r['car'] as String?) ?? car ?? '',
       kind: _kind(r['kind'] as String?),
       instant: r['instant'] == true,
@@ -437,7 +459,7 @@ class SupabaseBackend implements Backend {
     final dn = (d['full_name'] as String?) ?? '';
     final trip = _trip(
       {...t, 'seats_available': 0, 'seats_total': m['seats']},
-      driver: Person(dn, dn.isEmpty ? '؟' : dn.characters.first, id: d['id'] as String, rating: _num(d['rating_avg'])),
+      driver: Person(dn, dn.isEmpty ? '؟' : dn.characters.first, id: d['id'] as String, photo: _photo(d['avatar_path']), rating: _num(d['rating_avg'])),
       car: '${v['make_model']} · ${v['color']}',
       plate: (v['plate'] as String?) ?? '',
     );

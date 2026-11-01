@@ -96,7 +96,7 @@
   var STATUS = { submitted: ['جديد', 'warn'], reviewing: ['قيد المراجعة', 'warn'], interview: ['مقابلة', ''], approved: ['مقبول', 'ok'], rejected: ['مرفوض', 'bad'], cancelled: ['ملغى', 'bad'] };
   function badge(s) { var x = STATUS[s] || [s, '']; return el('span', { 'class': 'badge ' + x[1], text: x[0] }); }
 
-  var me = null, tab = 'apps', selected = null;
+  var me = null, tab = 'overview', selected = null;
 
   // ── الدخول ──
   function loginView() {
@@ -116,7 +116,7 @@
   }
 
   function shell(counts) {
-    var tabs = [['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null]];
+    var tabs = [['overview', 'نظرة عامة', null], ['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null]];
     if (me.role === 'admin') { tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
     return [
       el('header', {}, [el('h1', { text: 'مشوار · الإدارة' }), el('span', { 'class': 'who', text: me.full_name + ' · ' + (me.role === 'admin' ? 'مدير' : 'مشرف') }),
@@ -149,10 +149,28 @@
       sb.from('profiles').select('id', { count: 'exact', head: true }).not('deletion_requested_at', 'is', null)
     ]).then(function (r) {
       app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0, deletions: r[2].count || 0 }));
-      ({ apps: appsView, reports: reportsView, drivers: driversView, deletions: deletionsView, audit: auditView })[tab]();
+      ({ overview: overviewView, apps: appsView, reports: reportsView, drivers: driversView, deletions: deletionsView, audit: auditView })[tab]();
     });
   }
   function main() { return document.getElementById('main'); }
+
+  // ── نظرة عامة ──
+  function overviewView() {
+    var box = el('div', {});
+    main().replaceChildren(box);
+    sb.rpc('admin_stats').then(function (r) {
+      if (r.error) return err(r.error);
+      var d = r.data;
+      var tiles = [['المستخدمين', d.users], ['سائقين موثّقين', d.drivers], ['طلبات بانتظار', d.pending_applications], ['رحلات جاية', d.trips_upcoming],
+        ['رحلات اليوم', d.trips_today], ['حجوزات الأسبوع', d.bookings_week], ['مؤكّدة بالأسبوع', d.confirmed_week], ['بلاغات مفتوحة', d.open_reports], ['سائقين موقوفين', d.suspended]];
+      box.appendChild(el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px' }, tiles.map(function (t) {
+        return el('div', { 'class': 'card', style: 'margin:0' }, [el('div', { 'class': 'muted', text: t[0] }), el('div', { style: 'font-size:34px', text: String(t[1]) })]);
+      })));
+      box.appendChild(el('div', { 'class': 'card', style: 'margin-top:12px' }, [el('h3', { text: 'أكتر الطرق (آخر 30 يوم)' })].concat(
+        d.top_routes.length ? d.top_routes.map(function (x) { return el('div', { style: 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1.5px solid #EEF1F1' }, [el('span', { text: x.route }), el('span', { 'class': 'badge', text: x.trips + ' رحلة' })]); })
+          : [el('div', { 'class': 'muted', text: 'لسا ما في رحلات' })])));
+    });
+  }
 
   // ── طلبات السائقين ──
   function appsView() {

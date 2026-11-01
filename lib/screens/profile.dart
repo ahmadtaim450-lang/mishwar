@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/location.dart';
@@ -18,12 +19,13 @@ class ProfileScreen extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 24, 20, 64),
           color: C.primary,
           child: Column(children: [
-            Container(
-              width: 96,
-              height: 96,
-              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text(Store.i.name.isEmpty ? '؟' : Store.i.name.substring(0, 1), style: const TextStyle(fontFamily: kFont, fontSize: 46, color: C.primary)),
+            Press(
+              onTap: () => go(context, const EditProfileScreen()),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: Avatar(Store.i.profile?.person ?? const Person('؟', '؟'), size: 90),
+              ),
             ),
             const SizedBox(height: 10),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -107,6 +109,40 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late final _name = TextEditingController(text: Store.i.profile?.name ?? '');
+  bool _busy = false;
+
+  Future<void> _pickPhoto() async {
+    final src = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            RowItem(Icons.photo_camera_outlined, 'صوّر هلق', onTap: () => Navigator.pop(c, ImageSource.camera)),
+            RowItem(Icons.photo_library_outlined, 'اختار من الصور', onTap: () => Navigator.pop(c, ImageSource.gallery)),
+          ]),
+        ),
+      ),
+    );
+    if (src == null || !mounted) return;
+    XFile? f;
+    try {
+      f = await ImagePicker().pickImage(source: src, maxWidth: 600, maxHeight: 600, imageQuality: 80, preferredCameraDevice: CameraDevice.front);
+    } catch (_) {
+      if (mounted) toast(context, 'ما قدرنا نفتح الكاميرا أو الصور');
+      return;
+    }
+    if (f == null || !mounted) return;
+    final bytes = await f.readAsBytes();
+    if (!mounted) return;
+    setState(() => _busy = true);
+    final ok = await attempt(context, () => Store.i.uploadAvatar(bytes));
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) toast(context, 'تحدّثت صورتك');
+  }
   @override
   void dispose() {
     _name.dispose();
@@ -116,8 +152,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) => _Simple('تعديل الملف', [
         Center(
-          child: CircleAvatar(radius: 52, backgroundColor: C.primary, child: Text(Store.i.name.isEmpty ? '؟' : Store.i.name.substring(0, 1), style: const TextStyle(fontFamily: kFont, fontSize: 46, color: Colors.white))),
+          child: Press(
+            onTap: _busy ? null : _pickPhoto,
+            child: Stack(children: [
+              Avatar(Store.i.profile?.person ?? const Person('؟', '؟'), size: 104),
+              if (_busy) const Positioned.fill(child: Center(child: CircularProgressIndicator(color: C.primary))),
+              Positioned(bottom: 0, left: 0, child: Container(width: 36, height: 36, decoration: const BoxDecoration(color: C.dark, shape: BoxShape.circle), child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18))),
+            ]),
+          ),
         ),
+        const SizedBox(height: 6),
+        const Center(child: Text('صورة واضحة لوجهك بتخلّي الناس يرتاحوا أكتر', style: T.small)),
         const SizedBox(height: 20),
         const Text('الاسم الكامل', style: T.label),
         const SizedBox(height: 6),

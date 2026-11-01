@@ -268,6 +268,14 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d
 select t.expect_error(format($$select public.publish_trip(%L, 'latakia', 'damascus', null, null, now() + interval '5 days', 240, 75000, 3, 'men')$$, (select v from t.ids where k = 'veh_d')), 'NOT_APPROVED_DRIVER');
 select t.ok((select count(*) from public.reports) = 0, 'reported driver cannot read reports');
 
+\echo '▶ الصورة الشخصية وأرقام الإدارة'
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+update public.profiles set avatar_path = auth.uid() || '/avatar-1.jpg' where id = auth.uid();
+select t.expect_error($$update public.profiles set avatar_path = '00000000-0000-0000-0000-00000000000d/avatar.jpg' where id = auth.uid()$$, 'INVALID_INPUT');
+select t.expect_error($$select public.admin_stats()$$, 'FORBIDDEN');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select t.ok((public.admin_stats() ->> 'users')::int >= 7, 'admin stats');
+
 \echo '▶ أجهزة الإشعارات'
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
 select t.expect_error($$select public.register_device('short', 'android')$$, 'INVALID_INPUT');

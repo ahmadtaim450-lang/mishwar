@@ -5,12 +5,14 @@ enum RideKind { men, women, family }
 class Person {
   final String id;
   final String name;
+  /// رابط الصورة الشخصية (من السيرفر)
+  final String? photo;
   final String initial;
   final String? image;
   final double rating;
   final int trips;
   final bool verified;
-  const Person(this.name, this.initial, {this.id = '', this.image, this.rating = 4.8, this.trips = 10, this.verified = true});
+  const Person(this.name, this.initial, {this.id = '', this.image, this.photo, this.rating = 4.8, this.trips = 10, this.verified = true});
 }
 
 class Trip {

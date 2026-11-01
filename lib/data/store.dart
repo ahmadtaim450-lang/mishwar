@@ -258,13 +258,14 @@ class UserProfile {
   final String id, name;
   final bool? female;
   final DStatus driverStatus;
-  final String? phone, car, plate, vehicleId;
+  final String? phone, car, plate, vehicleId, photo;
   final double rating;
   final int trips;
   final String role;
   final String? music;
   final Map<String, String> prefs;
-  const UserProfile({required this.id, required this.name, this.female, this.driverStatus = DStatus.none, this.phone, this.car, this.plate, this.vehicleId, this.rating = 0, this.trips = 0, this.role = 'user', this.music, this.prefs = const {}});
+  const UserProfile({required this.id, required this.name, this.female, this.driverStatus = DStatus.none, this.phone, this.car, this.plate, this.vehicleId, this.photo, this.rating = 0, this.trips = 0, this.role = 'user', this.music, this.prefs = const {}});
+  Person get person => Person(name, name.isEmpty ? '؟' : name.substring(0, 1), id: id, photo: photo, rating: rating, trips: trips);
   bool get complete => name.trim().length >= 3 && female != null;
 }
 
@@ -547,6 +548,11 @@ class Store extends ChangeNotifier {
   Future<void> updateProfile({String? name, String? music, Map<String, String>? prefs}) => _guard(() async {
         if (name != null && name.trim().length < 3) throw AppException('INVALID_NAME', AppException.messages['INVALID_NAME']!);
         await backend.updateProfile(name: name?.trim(), music: music, prefs: prefs);
+        await _loadProfile();
+      });
+
+  Future<void> uploadAvatar(Uint8List bytes) => _guard(() async {
+        await backend.uploadAvatar(bytes);
         await _loadProfile();
       });
 

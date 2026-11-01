@@ -240,7 +240,10 @@ class Avatar extends StatelessWidget {
           height: size,
           color: const Color(0xFFD7F0FC),
           alignment: Alignment.center,
-          child: p.image == null
+          child: p.photo != null
+              ? Image.network(p.photo!, width: size, height: size, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Text(p.initial, style: TextStyle(fontSize: size * .42, color: C.dark, fontFamily: kFont)))
+              : p.image == null
               ? Text(p.initial, style: TextStyle(fontSize: size * .42, color: C.dark, fontFamily: kFont))
               : Image.asset('assets/images/${p.image}.png', width: size, height: size, fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Text(p.initial, style: TextStyle(fontSize: size * .42, color: C.dark, fontFamily: kFont))),

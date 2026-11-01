@@ -76,6 +76,11 @@ void main() {
     expect(dp.car, 'كيا ريو · فضي');
     expect(dp.vehicleId, isNotNull);
 
+    // الصورة الشخصية بتظهر للركاب
+    await driver.uploadAvatar(jpeg);
+    final withPhoto = await driver.loadProfile();
+    expect(withPhoto!.photo, contains('/storage/v1/object/public/avatars/'));
+
     // النشر
     final me = Person('سامر السائق', 'س', id: driverId);
     final draft = Trip(id: 'draft', from: 'اللاذقية', fromSpot: 'الكورنيش', to: 'دمشق', toSpot: 'البرامكة', dep: '09:30', arr: '13:30', duration: '4 س',
@@ -94,6 +99,7 @@ void main() {
     expect(t.day, 2);
     expect(t.stops, ['طرطوس', 'حمص']);
     expect(t.driver.name, 'سامر السائق');
+    expect(t.driver.photo, withPhoto.photo, reason: 'صورة السائق بالبحث');
     expect(t.seatsLeft, 3);
     expect(t.plate, isEmpty, reason: 'البحث ما بيكشف رقم السيارة');
     expect((await rider.destinationStats('اللاذقية', 2))['دمشق']?.$1, greaterThanOrEqualTo(1));
