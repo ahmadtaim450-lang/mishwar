@@ -16,6 +16,7 @@ class SupabaseBackend implements Backend {
   SupabaseClient get _c => _client ?? Supabase.instance.client;
   final _changes = StreamController<void>.broadcast();
   RealtimeChannel? _channel;
+  static bool _initialized = false;
 
   @override
   bool get isLive => true;
@@ -28,7 +29,10 @@ class SupabaseBackend implements Backend {
   @override
   Future<void> init() async {
     if (_client != null) return;
-    await Supabase.initialize(url: AppConfig.supabaseUrl, anonKey: AppConfig.supabaseAnonKey);
+    if (!_initialized) {
+      await Supabase.initialize(url: AppConfig.supabaseUrl, anonKey: AppConfig.supabaseAnonKey);
+      _initialized = true;
+    }
     _c.auth.onAuthStateChange.listen((s) {
       if (s.event == AuthChangeEvent.signedIn || s.event == AuthChangeEvent.initialSession) _subscribe();
       if (s.event == AuthChangeEvent.signedOut) _unsubscribe();

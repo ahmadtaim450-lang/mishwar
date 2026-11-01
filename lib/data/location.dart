@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'store.dart';
 
@@ -13,6 +14,24 @@ Future<Position?> myPosition() async {
   } catch (_) {
     return null;
   }
+}
+
+/// إعدادات التتبع وقت الرحلة. على أندرويد بيشتغل كخدمة ظاهرة بإشعار،
+/// فالتتبع بيكمّل لو الشاشة انطفت أو طلعت من التطبيق.
+LocationSettings trackingSettings(int distanceMeters) {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: distanceMeters,
+      foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationTitle: 'مشوار',
+        notificationText: 'عم نشارك موقعك مع رحلتك لحتى توصل',
+        enableWakeLock: true,
+        setOngoing: true,
+      ),
+    );
+  }
+  return LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: distanceMeters);
 }
 
 /// أقرب مدينة من القائمة لموقع معيّن.

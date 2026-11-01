@@ -9,6 +9,9 @@ import 'onboarding.dart';
 import 'shell.dart';
 import 'auth.dart' show SignupNameScreen;
 import '../data/store.dart';
+import '../core/config.dart';
+import '../data/demo_backend.dart';
+import '../data/supabase_backend.dart';
 import '../widgets/syria_hero.dart';
 
 /// شاشة البداية: خريطة سوريا ثلاثية الأبعاد ومدنها موصولة ببعض.
@@ -30,6 +33,14 @@ class SplashScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
                   child: Column(children: [
+                    if (Store.i.startupFailed) ...[
+                      const Text('ما قدرنا نتصل بالسيرفر. تأكد من النت وجرّب.', textAlign: TextAlign.center, style: TextStyle(fontFamily: kFont, color: Colors.white)),
+                      const SizedBox(height: 8),
+                      AsyncBtn('جرّب مرة تانية', kind: BtnKind.white, onTap: () async {
+                        await Store.i.start(AppConfig.live ? SupabaseBackend() : DemoBackend());
+                        if (context.mounted) goReplace(context, const SplashScreen());
+                      }),
+                    ] else
                     Btn(Store.i.signedIn && (Store.i.profile?.complete ?? false) ? 'أهلين ${Store.i.name}، كمّل' : 'يلّا نبلّش', kind: BtnKind.white, onTap: () => goReplace(context, !Store.i.signedIn ? const OnboardingScreen() : ((Store.i.profile?.complete ?? false) ? const AppShell() : const SignupNameScreen()))),
                     const SizedBox(height: 10),
                     const Text('مشوارك بأمان', style: TextStyle(fontFamily: kFont, fontSize: 13, color: Colors.white70)),

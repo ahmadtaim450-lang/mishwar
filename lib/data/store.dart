@@ -318,6 +318,7 @@ class Store extends ChangeNotifier {
 
   UserProfile? profile;
   DriverApp? app;
+  bool startupFailed = false;
   int pax = 1;
   final bookings = <Booking>[];
   final rides = <MyRide>[];
@@ -338,8 +339,14 @@ class Store extends ChangeNotifier {
     await backend.init();
     _changes?.cancel();
     _changes = backend.changes.listen((_) => refreshAll());
+    startupFailed = false;
     if (!backend.signedIn) return false;
-    await _loadProfile();
+    try {
+      await _loadProfile();
+    } catch (_) {
+      // بلا نت: منكمّل بالجلسة المحفوظة ومنحدّث بعدين
+      return false;
+    }
     if (profile?.complete ?? false) unawaited(refreshAll());
     return profile?.complete ?? false;
   }

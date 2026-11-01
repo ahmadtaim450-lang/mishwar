@@ -425,7 +425,7 @@ class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProvid
     final p = await myPosition();
     if (!mounted || p == null) return;
     _update(p);
-    _sub = Geolocator.getPositionStream(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 25)).listen((p) {
+    _sub = Geolocator.getPositionStream(locationSettings: trackingSettings(25)).listen((p) {
       if (mounted) _update(p);
     });
   }
@@ -571,7 +571,7 @@ class _DriverLiveScreenState extends State<DriverLiveScreen> {
       return;
     }
     _push(p);
-    _sub = Geolocator.getPositionStream(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 50)).listen((p) {
+    _sub = Geolocator.getPositionStream(locationSettings: trackingSettings(50)).listen((p) {
       if (mounted) _push(p);
     });
   }
