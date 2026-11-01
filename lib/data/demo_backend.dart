@@ -86,6 +86,8 @@ class DemoBackend implements Backend {
       vehicleId: _app == null ? null : 'veh-me',
       rating: 4.9,
       trips: 12,
+      music: _me.music,
+      prefs: _prefs,
     );
   }
 
@@ -112,6 +114,28 @@ class DemoBackend implements Backend {
       ChatMessage('m2', 'أهلين، تم القبول. الانطلاق بالزبط من ${up.fromSpot}', false, DateTime.now().subtract(const Duration(hours: 2, minutes: 55))),
     ];
     _notes.add(AppNotification('n0', 'booking.confirmed', 'انقبل حجزك', '${up.driver.name} قبل طلبك لرحلة ${up.from} ← ${up.to}', DateTime.now().subtract(const Duration(hours: 3))));
+  }
+
+  Map<String, String> _prefs = const {};
+
+  @override
+  Future<void> updateProfile({String? name, String? music, Map<String, String>? prefs}) async {
+    await _wait();
+    if (prefs != null) _prefs = Map.of(prefs);
+    _me = UserProfile(id: 'me', name: name ?? _me.name, female: _me.female, phone: _me.phone, driverStatus: _driver, music: music ?? _me.music, prefs: _prefs);
+  }
+
+  @override
+  Future<void> requestDeletion() async {
+    await _wait();
+    _bookings.clear();
+    _signed = false;
+  }
+
+  @override
+  Future<DriverPublic> driverPublic(Person p) async {
+    await _wait();
+    return DriverPublic(p, trips: p.trips, reviewsCount: reviews.length, rating: p.rating, verified: true, since: DateTime(2026, 3), reviews: reviews, histogram: const {5: 3, 4: 1});
   }
 
   // ── البحث ──────────────────────────────────────────────────────────

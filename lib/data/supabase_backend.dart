@@ -90,12 +90,54 @@ class SupabaseBackend implements Backend {
       rating: _num(m['rating_avg']),
       trips: (m['trips_count'] as num?)?.toInt() ?? 0,
       role: (m['role'] as String?) ?? 'user',
+      music: m['music_pref'] as String?,
+      prefs: {for (final e in Map<String, dynamic>.from((m['travel_prefs'] as Map?) ?? const {}).entries) e.key: '${e.value}'},
     );
   }
 
   @override
   Future<void> completeProfile(String fullName, bool female, {String? music}) =>
       _rpc('complete_profile', {'p_full_name': fullName, 'p_gender': female ? 'female' : 'male', 'p_music': music});
+
+  @override
+  Future<void> updateProfile({String? name, String? music, Map<String, String>? prefs}) async {
+    final patch = <String, dynamic>{
+      if (name != null) 'full_name': name,
+      if (music != null) 'music_pref': music,
+      if (prefs != null) 'travel_prefs': prefs,
+    };
+    if (patch.isEmpty) return;
+    await _c.from('profiles').update(patch).eq('id', _uid);
+  }
+
+  @override
+  Future<void> requestDeletion() => _rpc('request_account_deletion');
+
+  @override
+  Future<DriverPublic> driverPublic(Person p) async {
+    if (p.id.isEmpty) return DriverPublic(p);
+    final j = Map<String, dynamic>.from(await _rpc('driver_public', {'p_driver': p.id}) as Map);
+    final hist = Map<String, dynamic>.from((j['histogram'] as Map?) ?? const {});
+    return DriverPublic(
+      p,
+      trips: (j['trips_count'] as num?)?.toInt() ?? 0,
+      reviewsCount: (j['rating_count'] as num?)?.toInt() ?? 0,
+      rating: _num(j['rating_avg']),
+      verified: j['verified'] == true,
+      since: j['member_since'] == null ? null : DateTime.parse(j['member_since'] as String),
+      histogram: {for (final e in hist.entries) int.parse(e.key): (e.value as num).toInt()},
+      reviews: [
+        for (final r in ((j['reviews'] as List?) ?? const []).cast<Map>())
+          Review(
+            (r['author'] as String?) ?? '',
+            ((r['author'] as String?) ?? '؟').characters.first,
+            (r['stars'] as num).toInt(),
+            [...((r['tags'] as List?) ?? const []).map((e) => '$e'), if ((r['comment'] as String?)?.isNotEmpty ?? false) r['comment'] as String].join(' · '),
+            timeAgo(DateTime.parse(r['created_at'] as String).toLocal()),
+          ),
+      ],
+    );
+  }
 
   // ── البحث ──────────────────────────────────────────────────────────
   @override

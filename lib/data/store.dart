@@ -262,8 +262,22 @@ class UserProfile {
   final double rating;
   final int trips;
   final String role;
-  const UserProfile({required this.id, required this.name, this.female, this.driverStatus = DStatus.none, this.phone, this.car, this.plate, this.vehicleId, this.rating = 0, this.trips = 0, this.role = 'user'});
+  final String? music;
+  final Map<String, String> prefs;
+  const UserProfile({required this.id, required this.name, this.female, this.driverStatus = DStatus.none, this.phone, this.car, this.plate, this.vehicleId, this.rating = 0, this.trips = 0, this.role = 'user', this.music, this.prefs = const {}});
   bool get complete => name.trim().length >= 3 && female != null;
+}
+
+/// ملف السائق كما بيشوفو الراكب.
+class DriverPublic {
+  final Person p;
+  final int trips, reviewsCount;
+  final double rating;
+  final bool verified;
+  final DateTime? since;
+  final List<Review> reviews;
+  final Map<int, int> histogram;
+  const DriverPublic(this.p, {this.trips = 0, this.reviewsCount = 0, this.rating = 0, this.verified = false, this.since, this.reviews = const [], this.histogram = const {}});
 }
 
 class AppNotification {
@@ -520,6 +534,19 @@ class Store extends ChangeNotifier {
       // التتبع بيكمّل بالمحاولة الجاية
     }
   }
+
+  Future<DriverPublic> driverPublic(Person p) => _guard(() => backend.driverPublic(p));
+
+  Future<void> updateProfile({String? name, String? music, Map<String, String>? prefs}) => _guard(() async {
+        if (name != null && name.trim().length < 3) throw AppException('INVALID_NAME', AppException.messages['INVALID_NAME']!);
+        await backend.updateProfile(name: name?.trim(), music: music, prefs: prefs);
+        await _loadProfile();
+      });
+
+  Future<void> requestDeletion() => _guard(() async {
+        await backend.requestDeletion();
+        await signOut();
+      });
 
   Future<String> shareLink(Booking b) => _guard(() => backend.createShareLink(b));
   Stream<List<ChatMessage>> messages(String bookingId) => backend.messages(bookingId);

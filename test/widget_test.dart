@@ -11,6 +11,8 @@ import 'package:mishwar/screens/my_trips.dart';
 import 'package:mishwar/screens/profile.dart';
 import 'package:mishwar/screens/search.dart';
 import 'package:mishwar/screens/trip.dart';
+import 'package:mishwar/screens/messages.dart';
+import 'package:mishwar/screens/publish.dart';
 
 Widget wrap(Widget child) => MaterialApp(
       theme: buildTheme(),
@@ -49,6 +51,16 @@ void main() {
     'صير سائق': () => const Scaffold(body: DriverJoinIntro()),
     'طلب الانضمام': () => const DriverApplyFlow(),
     'كيف منوثّق': () => const HowWeVerifyScreen(),
+    'ملف السائق': () => DriverScreen(tripsFor('اللاذقية', 'دمشق').first.driver),
+    'تعديل الملف': () => const EditProfileScreen(),
+    'تفضيلات السفر': () => const TravelPrefsScreen(),
+    'سياراتي': () => const CarsScreen(),
+    'السجل': () => const HistoryScreen(),
+    'التوثيق': () => const VerifyScreen(),
+    'الطوارئ': () => const SosScreen(),
+    'الإشعارات': () => const NotificationsScreen(),
+    'الرسائل': () => const Scaffold(body: InboxScreen()),
+    'نشر رحلة': () => const PublishFlow(),
   };
 
   for (final s in sizes.entries) {

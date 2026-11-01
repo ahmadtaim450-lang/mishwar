@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../data/location.dart';
 import '../core/theme.dart';
 import 'driver_join.dart';
 import '../data/store.dart';
@@ -49,7 +53,7 @@ class ProfileScreen extends StatelessWidget {
                 child: const Row(children: [
                   Icon(Icons.shield_outlined, color: C.primary),
                   SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('وثّق هويتك', style: T.label), Text('الحسابات الموثقة بتنحجز أسرع', style: T.small)])),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('توثيق حسابك', style: T.label), Text('رقمك موثّق ✓ · شوف شو بيتوثّق كمان', style: T.small)])),
                   Icon(Icons.chevron_left_rounded, color: C.dark),
                 ]),
               ),
@@ -95,29 +99,42 @@ class _Simple extends StatelessWidget {
       );
 }
 
-class EditProfileScreen extends StatelessWidget {
+class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen();
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  late final _name = TextEditingController(text: Store.i.profile?.name ?? '');
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => _Simple('تعديل الملف', [
         Center(
-          child: Stack(children: [
-            const CircleAvatar(radius: 52, backgroundColor: C.primary, child: Text('إ', style: TextStyle(fontFamily: kFont, fontSize: 46, color: Colors.white))),
-            Positioned(bottom: 0, left: 0, child: Container(width: 36, height: 36, decoration: const BoxDecoration(color: C.dark, shape: BoxShape.circle), child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18))),
-          ]),
+          child: CircleAvatar(radius: 52, backgroundColor: C.primary, child: Text(Store.i.name.isEmpty ? '؟' : Store.i.name.substring(0, 1), style: const TextStyle(fontFamily: kFont, fontSize: 46, color: Colors.white))),
         ),
         const SizedBox(height: 20),
-        const Text('الاسم', style: T.label),
+        const Text('الاسم الكامل', style: T.label),
         const SizedBox(height: 6),
-        TextFormField(initialValue: 'إيهاب', style: const TextStyle(fontFamily: kFont, fontSize: 16)),
+        TextField(controller: _name, maxLength: 80, style: const TextStyle(fontFamily: kFont, fontSize: 16), decoration: const InputDecoration(counterText: '')),
         const SizedBox(height: 14),
-        const Text('المدينة', style: T.label),
+        const Text('رقم الموبايل', style: T.label),
         const SizedBox(height: 6),
-        TextFormField(initialValue: 'اللاذقية', style: const TextStyle(fontFamily: kFont, fontSize: 16)),
-        const SizedBox(height: 14),
-        const Text('نبذة عنك', style: T.label),
-        const SizedBox(height: 6),
-        TextFormField(initialValue: 'بسافر كتير بين اللاذقية ودمشق.', maxLines: 3, style: const TextStyle(fontFamily: kFont, fontSize: 15)),
-      ], bottom: Btn('حفظ', onTap: () {
+        CardBox(child: Row(children: [
+          Expanded(child: Text(Store.i.profile?.phone ?? '', textDirection: TextDirection.ltr, textAlign: TextAlign.end, style: T.label)),
+          const SizedBox(width: 8),
+          const Badge2('موثّق ✓'),
+        ])),
+        const SizedBox(height: 8),
+        const InfoNote('تغيير الرقم أو الجنس بيتم عن طريق الدعم، لحماية الحسابات.', icon: Icons.lock_outline_rounded),
+      ], bottom: AsyncBtn('حفظ', onTap: () async {
+        await Store.i.updateProfile(name: _name.text);
+        if (!context.mounted) return;
         toast(context, 'انحفظت التعديلات');
         Navigator.pop(context);
       }));
@@ -130,82 +147,120 @@ class TravelPrefsScreen extends StatefulWidget {
 }
 
 class _TravelPrefsScreenState extends State<TravelPrefsScreen> {
-  final _v = [1, 0, 0, 1];
   static const _groups = [
-    ('الحكي', ['بحب الحكي', 'حسب المزاج', 'بحب الهدوء']),
-    ('بالسيارة', ['أغاني', 'بلا أغاني', 'حسب الركاب']),
-    ('التدخين', ['ممنوع', 'بالوقفات بس', 'عادي']),
-    ('الاستراحة', ['كل ساعتين', 'حسب الطريق', 'بلا وقفات']),
+    ('talk', 'الحكي', ['بحب الحكي', 'حسب المزاج', 'بحب الهدوء']),
+    ('music', 'بالسيارة', ['أغاني', 'بلا أغاني', 'حسب الركاب']),
+    ('smoking', 'التدخين', ['ممنوع', 'بالوقفات بس', 'عادي']),
+    ('breaks', 'الاستراحة', ['كل ساعتين', 'حسب الطريق', 'بلا وقفات']),
   ];
+  static const _musicKeys = ['music', 'no_music', 'ask'];
+  late final _v = [
+    for (final g in _groups) () {
+      final saved = Store.i.profile?.prefs[g.$1];
+      final i = saved == null ? -1 : g.$3.indexOf(saved);
+      return i < 0 ? (g.$1 == 'music' ? _musicKeys.indexOf(Store.i.profile?.music ?? 'ask').clamp(0, 2) : 1) : i;
+    }(),
+  ];
+
   @override
   Widget build(BuildContext context) => _Simple('تفضيلات السفر', [
         const Text('بتظهر عملفك لحتى يعرف الركاب والسائقين شو بتحب.', style: T.body),
         const SizedBox(height: 10),
         for (var g = 0; g < _groups.length; g++) ...[
-          Padding(padding: const EdgeInsets.only(top: 14, bottom: 8), child: Text(_groups[g].$1, style: T.label)),
-          ChipGroup(options: _groups[g].$2, selected: {_v[g]}, onTap: (i) => setState(() => _v[g] = i)),
+          Padding(padding: const EdgeInsets.only(top: 14, bottom: 8), child: Text(_groups[g].$2, style: T.label)),
+          ChipGroup(options: _groups[g].$3, selected: {_v[g]}, onTap: (i) => setState(() => _v[g] = i)),
         ],
-      ], bottom: Btn('حفظ', onTap: () => Navigator.pop(context)));
+      ], bottom: AsyncBtn('حفظ', onTap: () async {
+        await Store.i.updateProfile(
+          music: _musicKeys[_v[1]],
+          prefs: {for (var g = 0; g < _groups.length; g++) _groups[g].$1: _groups[g].$3[_v[g]]},
+        );
+        if (!context.mounted) return;
+        toast(context, 'انحفظت تفضيلاتك');
+        Navigator.pop(context);
+      }));
 }
 
 class CarsScreen extends StatelessWidget {
   const CarsScreen();
   @override
-  Widget build(BuildContext context) => _Simple('سياراتي', [
+  Widget build(BuildContext context) {
+    final p = Store.i.profile;
+    return _Simple('سياراتي', [
+      if (p?.car == null)
+        EmptyState(
+          image: 'car_silver',
+          title: 'ما في سيارة موثّقة',
+          body: 'السيارة بتنضاف مع طلب الانضمام كسائق، وبتنفحص بالمقابلة.',
+          actions: [if (Store.i.driverStatus == DStatus.none) Btn('صير سائق موثّق', onTap: () => go(context, const DriverApplyFlow()))],
+        )
+      else ...[
         CardBox(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SizedBox(height: 150, child: Illus('car_silver', fallback: Icons.directions_car_rounded)),
             const SizedBox(height: 10),
-            const Row(children: [Expanded(child: Text('كيا ريو 2015 · فضي', style: T.h3)), Badge2('الافتراضية')]),
+            Row(children: [Expanded(child: Text(p!.car!, style: T.h3)), const Badge2('مفحوصة ✓')]),
+            if ((p.plate ?? '').isNotEmpty) Text(p.plate!, style: T.small),
           ]),
         ),
         const SizedBox(height: 12),
-        CardBox(onTap: () => toast(context, 'قريباً'), child: const Center(child: Padding(padding: EdgeInsets.all(14), child: Text('+ ضيف سيارة', style: TextStyle(fontFamily: kFont, color: C.primary, fontSize: 16))))),
-      ]);
+        const InfoNote('بدك تبدّل السيارة؟ السيارة الجديدة لازم تنفحص كمان. تواصل مع الدعم لنحدد موعد.', icon: Icons.info_outline_rounded),
+      ],
+    ]);
+  }
 }
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen();
   @override
-  Widget build(BuildContext context) => _Simple('سجل الرحلات', [
-        for (final (a, b, d, s) in const [('جبلة', 'حمص', 'الأحد · كراكب', 'انتهت'), ('اللاذقية', 'دمشق', 'الجمعة · كسائق', 'انتهت'), ('طرطوس', 'حلب', 'الإثنين · كراكب', 'ملغاة')])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: CardBox(
-              child: Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('$a ← $b', style: T.label), Text(d, style: T.small)])),
-                Badge2(s, bg: s == 'ملغاة' ? C.dangerBg : C.line, fg: s == 'ملغاة' ? C.danger : C.muted2),
-              ]),
-            ),
+  Widget build(BuildContext context) {
+    final items = <(String, String, String)>[
+      for (final b in Store.i.bookings.where((b) => !b.active))
+        ('${b.t.from} ← ${b.t.to}', '${dayLabel(b.t.day)} · كراكب', switch (b.status) { BStatus.done => 'انتهت', BStatus.rejected => 'ما انقبلت', _ => 'ملغاة' }),
+      for (final r in Store.i.rides.where((r) => r.status == 'completed' || r.status == 'cancelled'))
+        ('${r.t.from} ← ${r.t.to}', '${dayLabel(r.t.day)} · كسائق', r.status == 'completed' ? 'انتهت' : 'ملغاة'),
+    ];
+    return _Simple('سجل الرحلات', [
+      if (items.isEmpty) const EmptyState(image: 'empty_search', title: 'السجل فاضي', body: 'رحلاتك المنتهية والملغاة بتظهر هون.'),
+      for (final (a, d, st) in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: CardBox(
+            child: Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(a, style: T.label), Text(d, style: T.small)])),
+              Badge2(st, bg: st == 'انتهت' ? C.line : C.dangerBg, fg: st == 'انتهت' ? C.muted2 : C.danger),
+            ]),
           ),
-      ]);
+        ),
+    ]);
+  }
 }
 
-class VerifyScreen extends StatefulWidget {
+class VerifyScreen extends StatelessWidget {
   const VerifyScreen();
   @override
-  State<VerifyScreen> createState() => _VerifyScreenState();
-}
-
-class _VerifyScreenState extends State<VerifyScreen> {
-  int _done = 1;
-  @override
-  Widget build(BuildContext context) => _Simple('وثّق هويتك', [
-        const Floaty(child: Illus('id_scan', height: 200)),
-        const Text('التوثيق بيعطي ثقة أكبر، وصورة الهوية ما بتنعرض لحدا.', style: T.body),
-        const SizedBox(height: 14),
-        Group([
-          for (final (i, t) in const [(0, 'رقم الموبايل'), (1, 'صورة الهوية'), (2, 'صورة سيلفي')])
-            RowItem(i < _done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, t, sub: i < _done ? 'تم ✓' : 'اضغط للبدء', onTap: () => setState(() => _done = i + 1 > _done ? i + 1 : _done)),
-        ]),
-      ], bottom: Btn(_done >= 3 ? 'تم الإرسال للمراجعة' : 'التالي', onTap: () {
-        if (_done >= 3) {
-          Navigator.pop(context);
-          toast(context, 'عم نراجع هويتك، بتاخد أقل من 24 ساعة');
-        } else {
-          setState(() => _done++);
-        }
-      }));
+  Widget build(BuildContext context) {
+    final driver = Store.i.driverStatus;
+    return _Simple('توثيق حسابك', [
+      const Floaty(child: Illus('id_scan', height: 180)),
+      const SizedBox(height: 8),
+      Group([
+        RowItem(Icons.check_circle_rounded, 'رقم الموبايل', sub: '${Store.i.profile?.phone ?? ''} · موثّق برمز SMS'),
+        RowItem(
+          driver == DStatus.approved ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          'سائق موثّق',
+          sub: switch (driver) {
+            DStatus.approved => 'هوية، شهادة سواقة، لا حكم عليه، فحص سيارة ومقابلة',
+            DStatus.reviewing || DStatus.interview => 'طلبك عم يتراجع',
+            _ => 'للي بدو ينشر رحلات بس',
+          },
+          onTap: () => go(context, driver == DStatus.none ? const DriverApplyFlow() : const DriverStatusScreen()),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      const InfoNote('الركاب موثّقين برقم الموبايل. السائقين بيمرقوا بتوثيق كامل قبل ما ينشروا أي رحلة.', icon: Icons.shield_outlined),
+    ]);
+  }
 }
 
 class SafetyScreen extends StatelessWidget {
@@ -240,6 +295,26 @@ class SosScreen extends StatefulWidget {
 }
 
 class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMixin {
+  /// بيبعت لأهلك موقعك الحقيقي وتفاصيل رحلتك (برسالة أو واتساب)، ومعها رابط متابعة مباشرة إذا متاح.
+  Future<void> _alert(BuildContext context) async {
+    HapticFeedback.heavyImpact();
+    final p = await myPosition();
+    final b = Store.i.next;
+    var link = '';
+    if (b != null && b.status == BStatus.confirmed) {
+      try {
+        link = await Store.i.shareLink(b);
+      } catch (_) {}
+    }
+    final lines = [
+      'طوارئ: ${Store.i.profile?.name ?? ''} بحاجة مساعدة',
+      if (p != null) 'الموقع: ${mapsLink(p.latitude, p.longitude)}',
+      if (b != null) 'الرحلة: ${b.t.from} ← ${b.t.to} · السائق ${b.t.driver.name} · ${b.t.car}${(b.plate ?? '').isEmpty ? '' : ' · ${b.plate}'}',
+      if (link.isNotEmpty) 'متابعة مباشرة: $link',
+    ];
+    await Share.share(lines.join('\n'), subject: 'طوارئ · مشوار');
+  }
+
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..repeat();
   @override
   void dispose() {
@@ -268,7 +343,7 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
                         child: Opacity(opacity: (1 - (_c.value + off) % 1) * .4, child: Container(width: 150, height: 150, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
                       ),
                     GestureDetector(
-                      onLongPress: () => toast(context, 'تم إرسال تنبيه الطوارئ وموقعك لجهات اتصالك'),
+                      onLongPress: () => _alert(context),
                       child: Container(
                         width: 160,
                         height: 160,
@@ -284,9 +359,9 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
               const Text('رح نتصل بالطوارئ ونبعت موقعك وتفاصيل الرحلة لجهات اتصالك.', textAlign: TextAlign.center, style: TextStyle(fontFamily: kFont, fontSize: 15, color: Colors.white)),
               const Spacer(),
               Row(children: [
-                Expanded(child: Btn('الطوارئ 112', kind: BtnKind.dark, icon: Icons.call_rounded, onTap: () => toast(context, 'جاري الاتصال...'))),
+                Expanded(child: Btn('الطوارئ 112', kind: BtnKind.dark, icon: Icons.call_rounded, onTap: () => launchUrl(Uri(scheme: 'tel', path: '112')))),
                 const SizedBox(width: 10),
-                Expanded(child: Btn('بلّغ أهلي', kind: BtnKind.white, onTap: () => toast(context, 'انبعت لأهلك'))),
+                Expanded(child: AsyncBtn('بلّغ أهلي', kind: BtnKind.white, onTap: () => _alert(context))),
               ]),
             ]),
           ),
@@ -366,9 +441,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('تراجع', style: TextStyle(fontFamily: kFont))),
             TextButton(onPressed: () async {
-              // حذف الحساب بيتم من الدعم حالياً (لازم نلغي الحجوزات ونحذف الأوراق بأمان)
               Navigator.pop(context);
-              toast(context, 'وصلنا طلب حذف الحساب، رح نتواصل معك خلال 48 ساعة');
+              final ok = await attempt(context, Store.i.requestDeletion);
+              if (!ok || !context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const SplashScreen()), (_) => false);
+              Store.i.say('وصل طلب حذف حسابك. حجوزاتك انلغت، والحذف النهائي خلال 7 أيام');
             }, child: const Text('حذف', style: TextStyle(fontFamily: kFont, color: C.danger))),
           ],
         ),

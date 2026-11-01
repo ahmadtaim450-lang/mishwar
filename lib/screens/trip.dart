@@ -177,82 +177,109 @@ class _RouteScreenState extends State<RouteScreen> with SingleTickerProviderStat
   }
 }
 
-class DriverScreen extends StatelessWidget {
+class DriverScreen extends StatefulWidget {
   final Person p;
   const DriverScreen(this.p);
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: const TopBar(),
-        body: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
-          Row(children: [
-            Hero(tag: 'av-${p.name}', child: Avatar(p, size: 84)),
-            const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p.name, style: T.h1.copyWith(fontSize: 28)), Text('${p.trips} رحلة · عضو من 2026', style: T.small)])),
-          ]),
-          const SizedBox(height: 14),
-          CardBox(
-            onTap: () => go(context, const HowWeVerifyScreen()),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [
-                Icon(Icons.verified_rounded, color: C.primary),
-                SizedBox(width: 8),
-                Expanded(child: Text('سائق موثّق من مشوار', style: T.label)),
-                Text('كيف؟', style: TextStyle(fontFamily: kFont, color: C.primary)),
-              ]),
-              const SizedBox(height: 10),
-              for (final s in const ['الهوية الشخصية', 'شهادة السواقة', 'لا حكم عليه', 'أوراق السيارة وفحصها', 'مقابلة شخصية'])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(children: [const Icon(Icons.check_rounded, size: 18, color: Color(0xFF1E9E5A)), const SizedBox(width: 8), Text(s, style: T.body)]),
-                ),
-            ]),
-          ),
-          const SizedBox(height: 14),
-          CardBox(
-            child: Row(children: [
-              Column(children: [
-                Text('${p.rating}', style: const TextStyle(fontFamily: kFont, fontSize: 40, color: C.dark)),
-                const Text('★★★★★', style: TextStyle(color: C.star, fontSize: 14)),
-              ]),
-              const SizedBox(width: 18),
+  State<DriverScreen> createState() => _DriverScreenState();
+}
+
+class _DriverScreenState extends State<DriverScreen> {
+  late Future<DriverPublic> _f = Store.i.driverPublic(widget.p);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.p;
+    return Scaffold(
+      appBar: const TopBar(),
+      body: FutureBuilder<DriverPublic>(
+        future: _f,
+        builder: (context, snap) {
+          if (snap.hasError) return ErrorView(snap.error!, onRetry: () => setState(() => _f = Store.i.driverPublic(p)));
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: C.primary));
+          final d = snap.data!;
+          final total = d.histogram.values.fold<int>(0, (a, b) => a + b);
+          const months = ['كانون 2', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين 1', 'تشرين 2', 'كانون 1'];
+          return ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 20), children: [
+            Row(children: [
+              Hero(tag: 'av-${p.name}', child: Avatar(p, size: 84)),
+              const SizedBox(width: 16),
               Expanded(
-                child: Column(children: [
-                  for (final (n, w) in const [(5, .88), (4, .1), (3, .02), (2, .0), (1, .0)])
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(children: [
-                        Text('$n', style: T.small),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween(begin: 0, end: w),
-                              duration: const Duration(milliseconds: 900),
-                              curve: Curves.easeOutCubic,
-                              builder: (_, v, __) => LinearProgressIndicator(value: v, minHeight: 7, backgroundColor: C.line, color: C.primary),
-                            ),
-                          ),
-                        ),
-                      ]),
-                    ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(p.name, style: T.h1.copyWith(fontSize: 28), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('${d.trips} رحلة${d.since == null ? '' : ' · عضو من ${months[d.since!.month - 1]} ${d.since!.year}'}', style: T.small),
                 ]),
               ),
             ]),
-          ),
-          const SizedBox(height: 16),
-          Row(children: [
-            const Expanded(child: Text('شو قالوا عنو', style: T.h3)),
-            TextButton(onPressed: () => go(context, const ReviewsScreen()), child: const Text('الكل', style: TextStyle(fontFamily: kFont, color: C.primary))),
-          ]),
-          for (final r in reviews.take(3)) _ReviewCard(r),
-          TextButton.icon(
-            onPressed: () => go(context, ReportScreen(p)),
-            icon: const Icon(Icons.flag_outlined, color: C.danger),
-            label: const Text('بلّغ عن هالعضو', style: TextStyle(fontFamily: kFont, color: C.danger)),
-          ),
-        ]),
-      );
+            const SizedBox(height: 14),
+            if (d.verified)
+              CardBox(
+                onTap: () => go(context, const HowWeVerifyScreen()),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Row(children: [
+                    Icon(Icons.verified_rounded, color: C.primary),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('سائق موثّق من مشوار', style: T.label)),
+                    Text('كيف؟', style: TextStyle(fontFamily: kFont, color: C.primary)),
+                  ]),
+                  const SizedBox(height: 10),
+                  for (final s in const ['الهوية الشخصية', 'شهادة السواقة', 'لا حكم عليه', 'أوراق السيارة وفحصها', 'مقابلة شخصية'])
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(children: [const Icon(Icons.check_rounded, size: 18, color: Color(0xFF1E9E5A)), const SizedBox(width: 8), Text(s, style: T.body)]),
+                    ),
+                ]),
+              ),
+            const SizedBox(height: 14),
+            CardBox(
+              child: Row(children: [
+                Column(children: [
+                  Text(d.reviewsCount == 0 ? '—' : d.rating.toStringAsFixed(1), style: const TextStyle(fontFamily: kFont, fontSize: 40, color: C.dark)),
+                  Text(d.reviewsCount == 0 ? 'لسا جديد' : '${d.reviewsCount} تقييم', style: T.small),
+                ]),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(children: [
+                    for (var n = 5; n >= 1; n--)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(children: [
+                          Text('$n', style: T.small),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: total == 0 ? 0 : (d.histogram[n] ?? 0) / total),
+                                duration: const Duration(milliseconds: 900),
+                                curve: Curves.easeOutCubic,
+                                builder: (_, v, __) => LinearProgressIndicator(value: v, minHeight: 7, backgroundColor: C.line, color: C.primary),
+                              ),
+                            ),
+                          ),
+                        ]),
+                      ),
+                  ]),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              const Expanded(child: Text('شو قالوا عنو', style: T.h3)),
+              if (d.reviews.length > 3) TextButton(onPressed: () => go(context, ReviewsScreen(d.reviews)), child: const Text('الكل', style: TextStyle(fontFamily: kFont, color: C.primary))),
+            ]),
+            if (d.reviews.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('لسا ما في تقييمات. بس يخلص أول رحلة بتطلع هون.', style: T.body)),
+            for (final r in d.reviews.take(3)) _ReviewCard(r),
+            TextButton.icon(
+              onPressed: () => go(context, ReportScreen(p)),
+              icon: const Icon(Icons.flag_outlined, color: C.danger),
+              label: const Text('بلّغ عن هالعضو', style: TextStyle(fontFamily: kFont, color: C.danger)),
+            ),
+          ]);
+        },
+      ),
+    );
+  }
 }
 
 class _ReviewCard extends StatelessWidget {
@@ -277,11 +304,12 @@ class _ReviewCard extends StatelessWidget {
 }
 
 class ReviewsScreen extends StatelessWidget {
-  const ReviewsScreen();
+  final List<Review> items;
+  const ReviewsScreen(this.items);
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: const TopBar(title: 'التقييمات', sub: '38 تقييم'),
-        body: ListView(padding: const EdgeInsets.all(20), children: [for (var i = 0; i < reviews.length; i++) Enter(delay: i * 70, child: _ReviewCard(reviews[i]))]),
+        appBar: TopBar(title: 'التقييمات', sub: '${items.length} تقييم'),
+        body: ListView(padding: const EdgeInsets.all(20), children: [for (var i = 0; i < items.length; i++) Enter(delay: i * 50, child: _ReviewCard(items[i]))]),
       );
 }
 

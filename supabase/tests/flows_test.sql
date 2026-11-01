@@ -17,7 +17,7 @@ begin
   begin
     execute p_sql;
   exception when others then
-    if sqlerrm = p_code or (p_code = 'DENIED' and (sqlstate in ('42501') or sqlerrm like '%row-level security%' or sqlerrm like '%permission denied%')) then
+    if sqlerrm = p_code or (p_code = 'DENIED_OR_CHECK' and sqlstate in ('23514', '42501')) or (p_code = 'DENIED' and (sqlstate in ('42501') or sqlerrm like '%row-level security%' or sqlerrm like '%permission denied%')) then
       return;
     end if;
     raise exception 'FAIL: % → expected %, got % (%)', p_sql, p_code, sqlerrm, sqlstate;
@@ -221,6 +221,14 @@ select t.expect_error(format($$select public.submit_review(%L, 5)$$, (select v f
 select t.ok((select rating_avg from public.profiles where id = '00000000-0000-0000-0000-00000000000d') = 4.00, 'rating aggregated');
 select t.ok((select trips_count from public.profiles where id = '00000000-0000-0000-0000-00000000000d') = 1, 'driver trips counted');
 
+\echo '▶ ملف السائق العام والتفضيلات'
+select t.ok((public.driver_public('00000000-0000-0000-0000-00000000000d') ->> 'rating_count')::int = 1, 'driver public rating count');
+select t.ok((public.driver_public('00000000-0000-0000-0000-00000000000d') -> 'reviews' -> 0 ->> 'author') = 'رامي', 'review author first name only');
+select t.ok((public.driver_public('00000000-0000-0000-0000-00000000000d') -> 'histogram' ->> '4')::int = 1, 'histogram');
+select t.ok(not (public.driver_public('00000000-0000-0000-0000-00000000000d') ? 'phone'), 'no phone in public profile');
+update public.profiles set travel_prefs = '{"music": "no_music", "talk": "quiet"}' where id = auth.uid();
+select t.expect_error($$update public.profiles set travel_prefs = '[1,2]' where id = auth.uid()$$, 'DENIED_OR_CHECK');
+
 \echo '▶ البلاغات والإيقاف التلقائي'
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
 insert into t.ids values ('trip2', public.publish_trip((select v from t.ids where k = 'veh_d'), 'latakia', 'homs', null, null, now() + interval '3 days', 150, 45000, 3, 'men'));
@@ -240,6 +248,14 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
 select t.expect_error(format($$select public.publish_trip(%L, 'latakia', 'damascus', null, null, now() + interval '5 days', 240, 75000, 3, 'men')$$, (select v from t.ids where k = 'veh_d')), 'NOT_APPROVED_DRIVER');
 select t.ok((select count(*) from public.reports) = 0, 'reported driver cannot read reports');
+
+\echo '▶ طلب حذف الحساب'
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000009', true);
+select public.request_account_deletion();
+reset role;
+select t.ok((select deletion_requested_at is not null from public.profiles where id = '00000000-0000-0000-0000-000000000009'), 'deletion requested');
+select t.ok((select count(*) from public.notifications where kind = 'admin.deletion') = 1, 'admin notified about deletion');
+set local role authenticated;
 
 \echo '▶ الإشعارات والسجل'
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);

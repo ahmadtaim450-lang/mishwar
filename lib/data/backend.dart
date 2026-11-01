@@ -17,6 +17,9 @@ abstract class Backend {
   Future<void> signOut();
   Future<UserProfile?> loadProfile();
   Future<void> completeProfile(String fullName, bool female, {String? music});
+  Future<void> updateProfile({String? name, String? music, Map<String, String>? prefs});
+  Future<void> requestDeletion();
+  Future<DriverPublic> driverPublic(Person p);
 
   // البحث
   Future<List<Trip>> searchTrips(String from, String to, int day, int seats);
