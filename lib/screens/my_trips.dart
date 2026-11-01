@@ -792,7 +792,7 @@ class _RateScreenState extends State<RateScreen> {
         Text('كيف كانت رحلتك مع ${d.name}؟', style: T.h2, textAlign: TextAlign.center),
         Text('${widget.b.t.from} ← ${widget.b.t.to}', style: T.small, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           for (var i = 1; i <= 5; i++)
             IconButton(
               onPressed: () => setState(() => _r = i),
@@ -803,7 +803,7 @@ class _RateScreenState extends State<RateScreen> {
                 child: Icon(i <= _r ? Icons.star_rounded : Icons.star_outline_rounded, size: 44, color: i <= _r ? C.star : const Color(0xFFC7D1D1)),
               ),
             ),
-        ]),
+        ])),
         Center(child: Text(_words[_r], style: const TextStyle(fontFamily: kFont, color: C.primary, fontSize: 18))),
         const SizedBox(height: 16),
         ChipGroup(
@@ -854,7 +854,7 @@ class _RateRiderScreenState extends State<RateRiderScreen> {
         Text('كيف كان ${widget.q.p.name} كراكب؟', style: T.h2, textAlign: TextAlign.center),
         const Text('تقييمك بيساعد السائقين التانيين يقرروا', style: T.small, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           for (var i = 1; i <= 5; i++)
             IconButton(
               tooltip: '$i نجوم',
@@ -864,7 +864,7 @@ class _RateRiderScreenState extends State<RateRiderScreen> {
               }),
               icon: Icon(i <= _r ? Icons.star_rounded : Icons.star_outline_rounded, size: 44, color: i <= _r ? C.star : const Color(0xFFC7D1D1)),
             ),
-        ]),
+        ])),
         const SizedBox(height: 16),
         ChipGroup(options: opts, selected: _tags, onTap: (i) => setState(() => _tags.contains(i) ? _tags.remove(i) : _tags.add(i))),
       ]),
