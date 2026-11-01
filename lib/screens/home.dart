@@ -9,6 +9,7 @@ import '../widgets/dest_map.dart';
 import 'search.dart';
 import 'messages.dart';
 import 'my_trips.dart';
+import 'driver_join.dart' show HowWeVerifyScreen;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen();
@@ -161,6 +162,23 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Enter(delay: 120, child: _searchCard()),
+                const SizedBox(height: 10),
+                Enter(
+                  delay: 160,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => go(context, const HowWeVerifyScreen()),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      child: Row(children: [
+                        Icon(Icons.verified_rounded, color: C.primary, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(child: Text('كل السائقين موثّقين بمقابلة وفحص سيارة', style: TextStyle(fontFamily: kFont, fontSize: 13.5, color: C.dark))),
+                        Text('كيف؟', style: TextStyle(fontFamily: kFont, fontSize: 13.5, color: C.primary)),
+                      ]),
+                    ),
+                  ),
+                ),
                 if (next != null) ...[
                   const SizedBox(height: 14),
                   Enter(delay: 180, child: _NextTrip(next)),

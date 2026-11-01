@@ -13,6 +13,7 @@ import 'messages.dart';
 import 'profile.dart';
 import 'shell.dart';
 import 'publish.dart' show PublishFlow;
+import 'driver_join.dart';
 
 class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen();
@@ -87,6 +88,13 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   }
 
   Widget _driver() {
+    if (_s.driverStatus != DStatus.approved) {
+      final none = _s.driverStatus == DStatus.none;
+      return Column(key: const ValueKey('dj'), children: [
+        EmptyState(image: 'onboard2', title: none ? 'بس السائقين الموثّقين بينشروا' : 'طلبك عم يتراجع', body: none ? 'قدّم طلب انضمام، ومنتعرّف عليك بمقابلة وفحص سيارة. بعدها بتنشر رحلاتك.' : 'رح يوصلك إشعار بكل خطوة.'),
+        Btn(none ? 'صير سائق موثّق' : 'تابع حالة طلبك', icon: Icons.verified_outlined, onTap: () => go(context, none ? const DriverApplyFlow() : const DriverStatusScreen())),
+      ]);
+    }
     if (_s.rides.isEmpty) {
       return Column(key: const ValueKey('d0'), children: [
         const EmptyState(image: 'onboard2', title: 'ما نشرت رحلات لسا', body: 'طالع مشوار وعندك مقاعد فاضية؟ انشرها وقسّم المصروف مع ركاب موثّقين.'),
@@ -244,6 +252,46 @@ class TicketScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Enter(
+                delay: 140,
+                child: Row(children: [
+                  Expanded(
+                    child: CardBox(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('رقم السيارة', style: T.small),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: C.dark, width: 2)),
+                          child: Text(pending ? '•••••• ' : t.plate, style: const TextStyle(fontFamily: kFont, fontSize: 16, color: C.dark)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(t.car.split(' · ').last, style: T.small),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: CardBox(
+                      color: C.yellow,
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('رمز الرحلة', style: TextStyle(fontFamily: kFont)),
+                          content: const Text('قبل ما تطلع بالسيارة، اسأل السائق عن رمز رحلتك. إذا ما عرفو، لا تطلع وبلّغنا فوراً.', style: TextStyle(fontFamily: kFont, height: 1.7)),
+                          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('فهمت', style: TextStyle(fontFamily: kFont)))],
+                        ),
+                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('رمز الرحلة ⓘ', style: TextStyle(fontFamily: kFont, fontSize: 12.5, color: C.warn)),
+                        Text(pending ? '••••' : b.pin, style: const TextStyle(fontFamily: kFont, fontSize: 30, letterSpacing: 6, color: C.dark)),
+                        const Text('السائق لازم يعرفو', style: TextStyle(fontFamily: kFont, fontSize: 12, color: C.dark)),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 12),
+              Enter(
                 delay: 180,
                 child: Container(
                   padding: const EdgeInsets.all(18),
@@ -251,7 +299,7 @@ class TicketScreen extends StatelessWidget {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('قبل ما تطلع', style: TextStyle(fontFamily: kFont, color: C.yellow, fontSize: 14)),
                     const SizedBox(height: 8),
-                    for (final (i, s) in [(Icons.schedule_rounded, 'كون بنقطة الانطلاق قبل 10 دقايق'), (Icons.place_outlined, 'المكان: ${t.fromSpot}، ${t.from}'), (Icons.payments_outlined, 'جهّز ${money(b.total)} كاش'), (Icons.share_location_rounded, 'شارك موقعك مع أهلك وقت تطلع')])
+                    for (final (i, s) in [(Icons.schedule_rounded, 'كون بنقطة الانطلاق قبل 10 دقايق'), (Icons.place_outlined, 'المكان: ${t.fromSpot}، ${t.from}'), (Icons.payments_outlined, 'جهّز ${money(b.total)} كاش'), (Icons.pin_outlined, 'تأكد من رقم السيارة ورمز الرحلة قبل ما تطلع'), (Icons.share_location_rounded, 'شارك موقعك مع أهلك وقت تطلع')])
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Row(children: [Icon(i, color: Colors.white70, size: 18), const SizedBox(width: 10), Expanded(child: Text(s, style: const TextStyle(fontFamily: kFont, color: Colors.white, fontSize: 15)))]),

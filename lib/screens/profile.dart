@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
+import 'driver_join.dart';
+import '../data/store.dart';
 import '../data/mock.dart';
 import '../widgets/common.dart';
 import 'splash.dart';
@@ -50,6 +52,12 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Group([
+                RowItem(
+                  Icons.verified_outlined,
+                  switch (Store.i.driverStatus) { DStatus.none => 'صير سائق موثّق', DStatus.approved => 'سائق موثّق ✓', _ => 'حالة طلب السائق' },
+                  sub: switch (Store.i.driverStatus) { DStatus.none => 'انشر رحلاتك بعد مقابلة قصيرة', DStatus.reviewing => 'عم نراجع أوراقك', DStatus.interview => 'موعد المقابلة جاهز', DStatus.approved => Store.i.app?.car ?? '' },
+                  onTap: () => go(context, Store.i.driverStatus == DStatus.none ? const DriverApplyFlow() : const DriverStatusScreen()),
+                ),
                 RowItem(Icons.edit_outlined, 'تعديل الملف', onTap: () => go(context, const EditProfileScreen())),
                 RowItem(Icons.tune_rounded, 'تفضيلات السفر', onTap: () => go(context, const TravelPrefsScreen())),
                 RowItem(Icons.directions_car_outlined, 'سياراتي', sub: 'كيا ريو', onTap: () => go(context, const CarsScreen())),

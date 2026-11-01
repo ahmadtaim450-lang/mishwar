@@ -10,6 +10,7 @@ import '../widgets/real_map.dart';
 import 'messages.dart';
 import 'profile.dart';
 import 'shell.dart';
+import 'driver_join.dart' show HowWeVerifyScreen;
 import 'my_trips.dart' show TicketScreen;
 
 class TripDetailsScreen extends StatelessWidget {
@@ -57,6 +58,7 @@ class TripDetailsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 24, color: C.line),
                 _info(Icons.directions_car_outlined, t.car),
+                InkWell(onTap: () => go(context, const HowWeVerifyScreen()), child: _info(Icons.verified_outlined, 'سائق موثّق: مقابلة وفحص سيارة ولا حكم عليه')),
                 _info(Icons.smoke_free_rounded, 'ممنوع التدخين'),
                 _info(Icons.local_cafe_outlined, 'وقفة استراحة عالطريق'),
                 _info(Icons.luggage_outlined, 'شنتاية وحدة متوسطة'),
@@ -182,7 +184,23 @@ class DriverScreen extends StatelessWidget {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p.name, style: T.h1.copyWith(fontSize: 28)), Text('${p.trips} رحلة · عضو من 2026', style: T.small)])),
           ]),
           const SizedBox(height: 14),
-          const Wrap(spacing: 8, runSpacing: 8, children: [Badge2('✓ هوية موثقة'), Badge2('✓ رقم موثق'), Badge2('بيرد بسرعة')]),
+          CardBox(
+            onTap: () => go(context, const HowWeVerifyScreen()),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Row(children: [
+                Icon(Icons.verified_rounded, color: C.primary),
+                SizedBox(width: 8),
+                Expanded(child: Text('سائق موثّق من مشوار', style: T.label)),
+                Text('كيف؟', style: TextStyle(fontFamily: kFont, color: C.primary)),
+              ]),
+              const SizedBox(height: 10),
+              for (final s in const ['الهوية الشخصية', 'شهادة السواقة', 'لا حكم عليه', 'أوراق السيارة وفحصها', 'مقابلة شخصية'])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(children: [const Icon(Icons.check_rounded, size: 18, color: Color(0xFF1E9E5A)), const SizedBox(width: 8), Text(s, style: T.body)]),
+                ),
+            ]),
+          ),
           const SizedBox(height: 14),
           CardBox(
             child: Row(children: [

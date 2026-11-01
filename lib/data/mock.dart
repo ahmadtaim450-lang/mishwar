@@ -24,6 +24,7 @@ class Trip {
   final bool instant;
   final List<String> stops;
   final int day; // 0 اليوم، 1 بكرا، سالب = بالماضي
+  final String plate; // رقم السيارة
   const Trip({
     required this.id,
     required this.from,
@@ -42,6 +43,7 @@ class Trip {
     this.instant = false,
     this.stops = const [],
     this.day = 1,
+    this.plate = '',
   });
 }
 

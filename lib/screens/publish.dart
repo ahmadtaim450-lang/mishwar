@@ -4,12 +4,33 @@ import '../data/mock.dart';
 import '../data/store.dart';
 import '../widgets/common.dart';
 import 'shell.dart';
+import 'driver_join.dart';
 
 class PublishStartScreen extends StatelessWidget {
   const PublishStartScreen();
   @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: Store.i,
+        builder: (context, _) => switch (Store.i.driverStatus) {
+          DStatus.none => const DriverJoinIntro(),
+          DStatus.approved => const _PublishHome(),
+          _ => const SafeArea(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(padding: EdgeInsets.fromLTRB(20, 20, 20, 0), child: Text('طلب السائق', style: T.h1)),
+                Expanded(child: DriverStatusBody()),
+              ]),
+            ),
+        },
+      );
+}
+
+class _PublishHome extends StatelessWidget {
+  const _PublishHome();
+  @override
   Widget build(BuildContext context) => SafeArea(
         child: ListView(padding: const EdgeInsets.all(20), children: [
+          const Enter(child: Badge2('✓ سائق موثّق', bg: C.dark, fg: Colors.white)),
+          const SizedBox(height: 8),
           const Enter(child: Text('عندك مقاعد فاضية؟', style: T.h1)),
           const Enter(delay: 100, child: Text('انشر رحلتك بدقيقة وقسّم مصروف الطريق.', style: T.body)),
           const SizedBox(height: 16),
@@ -94,7 +115,8 @@ class _PublishFlowState extends State<PublishFlow> {
       seatsLeft: _seats,
       seatsTotal: _seats,
       driver: me,
-      car: 'سيارتي',
+      car: Store.i.app == null ? 'سيارتي' : '${Store.i.app!.car} · ${Store.i.app!.color}',
+      plate: Store.i.app?.plate ?? '',
       kind: _who.contains(1) ? RideKind.family : (_female ? RideKind.women : RideKind.men),
       instant: _booking == 0,
       stops: [for (var i = 0; i < _stopList.length; i++) if (_stops.contains(i)) _stopList[i]],

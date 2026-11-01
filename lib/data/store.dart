@@ -1,6 +1,7 @@
 // حالة التطبيق: الحجوزات، الرحلات المنشورة، وتوليد رحلات منطقية لكل طريق.
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'mock.dart';
 
@@ -171,6 +172,7 @@ List<Trip> tripsFor(String from, String to, {int day = 1}) {
         instant: r.nextInt(3) == 0,
         stops: stops,
         day: day,
+        plate: '${const ['دمشق', 'اللاذقية', 'حمص', 'طرطوس', 'حلب'][r.nextInt(5)]} ${100000 + r.nextInt(899999)}',
       ));
     }
     return list;
@@ -185,6 +187,8 @@ class Booking {
   final bool family;
   BStatus status;
   bool rated = false;
+  /// رمز الرحلة: الراكب بيتأكد منو مع السائق قبل ما يطلع
+  final String pin = (1000 + math.Random().nextInt(9000)).toString();
   Booking(this.t, this.seats, {this.family = false, this.status = BStatus.pending});
   int get total => t.price * seats;
 }
@@ -205,7 +209,48 @@ class MyRide {
   int get pending => reqs.where((q) => q.state == 0).length;
 }
 
+enum DStatus { none, reviewing, interview, approved }
+
+/// طلب الانضمام كسائق موثّق.
+class DriverApp {
+  String name = '', phone = '', city = '', car = '', year = '', color = '', plate = '';
+  final docs = <String, Uint8List>{};
+  String place = '';
+  int day = 1;
+  String slot = '';
+  DateTime sent = DateTime.now();
+}
+
 class Store extends ChangeNotifier {
+  DStatus driverStatus = DStatus.none;
+  DriverApp? app;
+
+  void submitApplication(DriverApp a) {
+    app = a..sent = DateTime.now();
+    driverStatus = DStatus.reviewing;
+    notifyListeners();
+    Timer(const Duration(seconds: 12), () {
+      if (driverStatus != DStatus.reviewing) return;
+      driverStatus = DStatus.interview;
+      notifyListeners();
+      say('أوراقك تمام! موعد مقابلتك ${dayLabel(a.day)} الساعة ${a.slot}');
+    });
+  }
+
+  void finishInterview() {
+    Timer(const Duration(seconds: 4), () {
+      driverStatus = DStatus.approved;
+      notifyListeners();
+      say('مبروك! صرت سائق موثّق بمشوار، فيك تنشر رحلتك الأولى');
+    });
+  }
+
+  void cancelApplication() {
+    driverStatus = DStatus.none;
+    app = null;
+    notifyListeners();
+  }
+
   static final i = Store._();
   final messenger = GlobalKey<ScaffoldMessengerState>();
 
