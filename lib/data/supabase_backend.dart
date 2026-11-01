@@ -216,6 +216,10 @@ class SupabaseBackend implements Backend {
       _rpc('submit_review', {'p_booking': b.id, 'p_stars': stars, 'p_tags': tags, 'p_comment': comment});
 
   @override
+  Future<void> reviewRider(RideReq q, int stars, List<String> tags, String? comment) =>
+      _rpc('submit_rider_review', {'p_booking': q.id, 'p_stars': stars, 'p_tags': tags, 'p_comment': comment});
+
+  @override
   Future<void> report(String targetId, String? tripId, String reason, String? details) =>
       _rpc('submit_report', {'p_target': targetId, 'p_trip': tripId, 'p_reason': reason, 'p_details': details});
 
@@ -241,6 +245,7 @@ class SupabaseBackend implements Backend {
               seats: (b['seats'] as num).toInt(),
               id: b['id'] as String,
               state: switch (b['status']) { 'pending' => 0, 'rejected' => 2, _ => 1 },
+              reviewed: b['reviewed'] == true,
             ));
           }
           return ride;

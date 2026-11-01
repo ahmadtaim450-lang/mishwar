@@ -187,7 +187,11 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     Avatar(q.p),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(q.p.name, style: T.label), Text('★ ${q.p.rating} · ${q.note}', style: T.small)])),
-                    if (q.state == 1) const Badge2('مقبول'),
+                    if (q.state == 1 && r.status == 'completed')
+                      q.reviewed
+                          ? const Badge2('قيّمتو ★', bg: C.line, fg: C.muted2)
+                          : TextButton(onPressed: () => go(context, RateRiderScreen(q)), child: const Text('قيّم', style: TextStyle(fontFamily: kFont, color: C.primary)))
+                    else if (q.state == 1) const Badge2('مقبول'),
                     if (q.state == 2) const Badge2('مرفوض', bg: C.dangerBg, fg: C.danger),
                   ]),
                   AnimatedSize(
@@ -817,6 +821,58 @@ class _RateScreenState extends State<RateScreen> {
             final opts = _r >= 4 ? const ['عالوقت', 'سواقة آمنة', 'سيارة نضيفة', 'محترم', 'وقف للاستراحة'] : const ['تأخر', 'سواقة سريعة', 'السيارة مو نضيفة', 'غيّر المسار'];
             await Store.i.rate(widget.b, _r, [for (final i in _tags) if (i < opts.length) opts[i]], _comment.text);
             Store.i.say('شكراً عالتقييم');
+            if (context.mounted) Navigator.pop(context);
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+/// السائق بيقيّم الراكب بعد الرحلة.
+class RateRiderScreen extends StatefulWidget {
+  final RideReq q;
+  const RateRiderScreen(this.q);
+  @override
+  State<RateRiderScreen> createState() => _RateRiderScreenState();
+}
+
+class _RateRiderScreenState extends State<RateRiderScreen> {
+  int _r = 5;
+  final _tags = <int>{0};
+  static const _good = ['عالموعد', 'محترم', 'دفع كامل', 'شناتي حسب الاتفاق'];
+  static const _bad = ['تأخر', 'غيّر المكان', 'ما دفع كامل', 'تصرف مزعج'];
+  @override
+  Widget build(BuildContext context) {
+    final opts = _r >= 4 ? _good : _bad;
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: const TopBar(close: true),
+      body: ListView(padding: const EdgeInsets.all(24), children: [
+        Center(child: Avatar(widget.q.p, size: 96)),
+        const SizedBox(height: 12),
+        Text('كيف كان ${widget.q.p.name} كراكب؟', style: T.h2, textAlign: TextAlign.center),
+        const Text('تقييمك بيساعد السائقين التانيين يقرروا', style: T.small, textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (var i = 1; i <= 5; i++)
+            IconButton(
+              tooltip: '$i نجوم',
+              onPressed: () => setState(() {
+                _r = i;
+                _tags.clear();
+              }),
+              icon: Icon(i <= _r ? Icons.star_rounded : Icons.star_outline_rounded, size: 44, color: i <= _r ? C.star : const Color(0xFFC7D1D1)),
+            ),
+        ]),
+        const SizedBox(height: 16),
+        ChipGroup(options: opts, selected: _tags, onTap: (i) => setState(() => _tags.contains(i) ? _tags.remove(i) : _tags.add(i))),
+      ]),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: AsyncBtn('إرسال التقييم', onTap: () async {
+            await Store.i.rateRider(widget.q, _r, [for (final i in _tags) if (i < opts.length) opts[i]], null);
             if (context.mounted) Navigator.pop(context);
           }),
         ),

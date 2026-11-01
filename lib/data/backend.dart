@@ -33,6 +33,7 @@ abstract class Backend {
   Future<Booking> bookingDetails(Booking b);
   Future<void> cancelBooking(Booking b, String reason);
   Future<void> submitReview(Booking b, int stars, List<String> tags, String? comment);
+  Future<void> reviewRider(RideReq q, int stars, List<String> tags, String? comment);
   Future<void> report(String targetId, String? tripId, String reason, String? details);
 
   // السائق

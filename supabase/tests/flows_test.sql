@@ -238,6 +238,15 @@ select t.expect_error(format($$select public.submit_review(%L, 6)$$, (select v f
 select public.submit_review((select v from t.ids where k = 'b2'), 4, array['عالوقت'], 'منيح');
 select t.expect_error(format($$select public.submit_review(%L, 5)$$, (select v from t.ids where k = 'b2')), 'ALREADY_REVIEWED');
 select t.ok((select rating_avg from public.profiles where id = '00000000-0000-0000-0000-00000000000d') = 4.00, 'rating aggregated');
+select t.expect_error(format($$select public.submit_rider_review(%L, 5)$$, (select v from t.ids where k = 'b2')), 'FORBIDDEN');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+select public.submit_rider_review((select v from t.ids where k = 'b2'), 5, array['محترم'], 'راكب ممتاز');
+select t.expect_error(format($$select public.submit_rider_review(%L, 4)$$, (select v from t.ids where k = 'b2')), 'ALREADY_REVIEWED');
+select t.ok((select rating_avg from public.profiles where id = '00000000-0000-0000-0000-000000000002') = 5.00, 'rider rated by driver');
+select t.ok((select rating_avg from public.profiles where id = '00000000-0000-0000-0000-00000000000d') = 4.00, 'driver rating unchanged');
+select t.ok((public.my_driver_trips() -> 0 -> 'bookings' -> 0 ->> 'reviewed')::boolean or (public.my_driver_trips() -> 1 -> 'bookings' -> 0 ->> 'reviewed')::boolean, 'driver sees reviewed flag');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select t.ok((public.booking_details((select v from t.ids where k = 'b2')) ->> 'driver_reviewed')::boolean, 'rider sees driver reviewed them');
 select t.ok((select trips_count from public.profiles where id = '00000000-0000-0000-0000-00000000000d') = 1, 'driver trips counted');
 
 \echo '▶ ملف السائق العام والتفضيلات'

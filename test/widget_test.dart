@@ -62,6 +62,7 @@ void main() {
     'الرسائل': () => const Scaffold(body: InboxScreen()),
     'نشر رحلة': () => const PublishFlow(),
     'شاشة السائق': () => DriverLiveScreen(MyRide(tripsFor('حمص', 'حلب').first)),
+    'تقييم راكب': () => RateRiderScreen(RideReq(tripsFor('حمص', 'حلب').first.driver, '')),
     'مشاركة الموقع': () => ShareTripScreen(Store.i.upcoming.first),
     'متابعة الرحلة': () => LiveTripScreen(Store.i.upcoming.first),
     'المسار': () => RouteScreen(tripsFor('اللاذقية', 'دمشق').first),

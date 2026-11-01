@@ -221,7 +221,8 @@ class RideReq {
   final String note;
   final int seats;
   int state; // 0 بانتظار، 1 مقبول، 2 مرفوض
-  RideReq(this.p, this.note, {this.seats = 1, String? id, this.state = 0}) : id = id ?? 'req-${DateTime.now().microsecondsSinceEpoch}';
+  bool reviewed; // السائق قيّم هالراكب
+  RideReq(this.p, this.note, {this.seats = 1, String? id, this.state = 0, this.reviewed = false}) : id = id ?? 'req-${DateTime.now().microsecondsSinceEpoch}';
 }
 
 class MyRide {
@@ -470,6 +471,12 @@ class Store extends ChangeNotifier {
   Future<void> rate(Booking b, int stars, List<String> tags, String? comment) => _guard(() async {
         await backend.submitReview(b, stars, tags, comment);
         b.rated = true;
+        notifyListeners();
+      });
+
+  Future<void> rateRider(RideReq q, int stars, List<String> tags, String? comment) => _guard(() async {
+        await backend.reviewRider(q, stars, tags, comment);
+        q.reviewed = true;
         notifyListeners();
       });
 

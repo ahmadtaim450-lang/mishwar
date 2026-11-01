@@ -217,6 +217,14 @@ class DemoBackend implements Backend {
   }
 
   @override
+  Future<void> reviewRider(RideReq q, int stars, List<String> tags, String? comment) async {
+    await _wait();
+    if (q.reviewed) throw AppException('ALREADY_REVIEWED', AppException.messages['ALREADY_REVIEWED']!);
+    if (stars < 1 || stars > 5) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    q.reviewed = true;
+  }
+
+  @override
   Future<void> report(String targetId, String? tripId, String reason, String? details) async {
     await _wait();
     if (reason.trim().length < 2) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);

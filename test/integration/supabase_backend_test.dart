@@ -146,6 +146,9 @@ void main() {
     // الأخطاء بتوصل كرموز مفهومة
     await expectLater(() => rider.requestBooking(t, 1), throwsA(predicate((e) => AppException.from(e!).code == 'ALREADY_BOOKED')));
 
+    // السائق ما بيقدر يقيّم الراكب قبل ما تخلص الرحلة
+    await expectLater(() => driver.reviewRider(ride.reqs.single, 5, const ['محترم'], null), throwsA(predicate((e) => AppException.from(e!).code == 'INVALID_STATE')));
+
     // الإلغاء
     await rider.cancelBooking(d, 'تغيّرت خطتي');
     expect((await rider.myBookings()).where((x) => x.id == b.id), isEmpty);
