@@ -295,8 +295,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _input(IconData icon, String label, String hint, TextEditingController ctl, FocusNode focus, int field) => SizedBox(
-        height: 64,
+  Widget _input(IconData icon, String label, String hint, TextEditingController ctl, FocusNode focus, int field) => ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 64),
         child: Row(children: [
           Icon(icon, color: C.primary, size: 20),
           const SizedBox(width: 12),
@@ -379,8 +379,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _field(IconData icon, String label, String value, VoidCallback onTap) => InkWell(
         onTap: onTap,
-        child: SizedBox(
-          height: 62,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 62),
           child: Row(children: [
             Icon(icon, color: C.primary, size: 20),
             const SizedBox(width: 12),

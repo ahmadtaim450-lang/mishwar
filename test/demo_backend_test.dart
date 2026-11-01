@@ -25,11 +25,11 @@ void main() {
   test('قواعد الحجز: الجنس والمقاعد والتكرار', () async {
     await b.verifyOtp('+963912345678', '123456');
     await b.completeProfile('سامي الراكب', false);
-    final found = await b.searchTrips('اللاذقية', 'دمشق', 1, 1);
+    final found = await b.searchTrips('حمص', 'حلب', 1, 1);
     expect(found, isNotEmpty);
     expect(found.any((t) => t.kind == RideKind.women), isFalse, reason: 'الرجال ما بيشوفوا الرحلات النسائية');
 
-    final women = tripsFor('اللاذقية', 'دمشق', day: 1).firstWhere((t) => t.kind == RideKind.women);
+    final women = tripsFor('حمص', 'حلب', day: 1).firstWhere((t) => t.kind == RideKind.women);
     await expectLater(() => b.requestBooking(women, 1), code('GENDER_RESTRICTED'));
 
     final men = found.firstWhere((t) => t.kind == RideKind.men);
@@ -47,7 +47,7 @@ void main() {
   test('الرحلات العائلية بدها حجز عائلي', () async {
     await b.verifyOtp('+963912345678', '123456');
     await b.completeProfile('سامي الراكب', false);
-    final fam = tripsFor('اللاذقية', 'دمشق', day: 1).where((t) => t.kind == RideKind.family && t.seatsLeft >= 2);
+    final fam = tripsFor('حمص', 'حلب', day: 1).where((t) => t.kind == RideKind.family && t.seatsLeft >= 2);
     if (fam.isEmpty) return;
     await expectLater(() => b.requestBooking(fam.first, 2), code('FAMILY_ONLY'));
     expect((await b.requestBooking(fam.first, 2, family: true)).family, isTrue);

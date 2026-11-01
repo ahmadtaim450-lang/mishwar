@@ -110,7 +110,8 @@ jobs:
           status=$?
           tail -5 test.log
           if [ $status -ne 0 ]; then
-            grep -E "\[E\]|Expected:|Actual:|Error:|FAIL|overflowed|Exception" test.log | head -60 | while read -r l; do echo "::error::$l"; done
+            msg=$(grep -E "\[E\]|Expected:|Actual:|Error:|overflowed|Exception|══╡|file:///.*dart" test.log | grep -v "package:flutter/" | head -150 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error::$msg"
             exit 1
           fi
 

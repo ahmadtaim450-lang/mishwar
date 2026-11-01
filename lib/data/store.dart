@@ -83,10 +83,11 @@ int roadKm(String a, String b) => geo.containsKey(a) && geo.containsKey(b) ? (_h
 List<String> stopsBetween(String a, String b) {
   if (!geo.containsKey(a) || !geo.containsKey(b)) return const [];
   final d = _hav(a, b);
-  const majors = ['طرطوس', 'حمص', 'حماة', 'جبلة'];
-  final c = majors.where((m) => m != a && m != b && _hav(a, m) + _hav(m, b) <= d * 1.2).toList()..sort((x, y) => _hav(a, x).compareTo(_hav(a, y)));
-  if (c.length <= 2) return c;
-  return [c.first, c.last];
+  // بالترتيب حسب الأهمية: الكراجات الكبيرة أولى بالوقفة
+  const majors = ['حمص', 'طرطوس', 'حماة', 'جبلة'];
+  final c = majors.where((m) => m != a && m != b && _hav(a, m) + _hav(m, b) <= d * 1.2).take(2).toList()
+    ..sort((x, y) => _hav(a, x).compareTo(_hav(a, y)));
+  return c;
 }
 
 int suggestedPrice(String a, String b) => math.max(15000, (roadKm(a, b) * 240 / 5000).round() * 5000);

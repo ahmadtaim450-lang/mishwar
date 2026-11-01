@@ -132,7 +132,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
         if (_sel != null)
           TextButton.icon(onPressed: _reset, icon: const Icon(Icons.zoom_out_map_rounded, size: 18), label: const Text('كل المدن', style: TextStyle(fontFamily: kFont)))
         else
-          const Text('حجم الدائرة = عدد الرحلات', style: T.small),
+          const Flexible(child: Text('حجم الدائرة = عدد الرحلات', style: T.small, overflow: TextOverflow.ellipsis)),
       ]),
       const SizedBox(height: 8),
       Container(
