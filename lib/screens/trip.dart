@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/location.dart' show mapsLink;
+import '../map/tiles.dart' show MapTiles, downloadRegion;
+import '../map/geo_math.dart' show boundsOf;
 import '../core/theme.dart';
 import '../data/mock.dart';
 import '../data/store.dart';
@@ -176,6 +178,16 @@ class _RouteScreenState extends State<RouteScreen> with SingleTickerProviderStat
                 Text('افتح بالخرائط', style: TextStyle(fontFamily: kFont, color: C.primary, fontSize: 13.5)),
               ]),
             ),
+          ),
+        if (MapTiles.allowOffline)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+            child: AsyncBtn('احفظ خريطة الطريق للاستعمال بلا نت', kind: BtnKind.outline, icon: Icons.download_for_offline_rounded, busyLabel: 'عم ننزّل...', onTap: () async {
+              final pts = [t.from, ...t.stops, t.to].where(geo.containsKey).map((c) => LatLng(geo[c]!.$1, geo[c]!.$2)).toList();
+              final b = boundsOf(pts).expand(.1);
+              final n = await downloadRegion((south: b.south, west: b.west, north: b.north, east: b.east), maxZoom: 11);
+              if (context.mounted) toast(context, 'انحفظت $n صورة من الخريطة');
+            }),
           ),
         Expanded(
           child: ListView(padding: const EdgeInsets.all(20), children: [

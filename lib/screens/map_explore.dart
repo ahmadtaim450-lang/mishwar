@@ -324,7 +324,12 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
   }
 
   Future<void> _openSearch() async {
-    final res = await Navigator.of(context).push<GeoPlace>(MaterialPageRoute(builder: (_) => MapSearchScreen(near: _loc.point)));
+    // البحث بيتحيّز للمنطقة الظاهرة (إذا مكبّرة)، وإلا لموقعي
+    LatLng? near = _loc.point;
+    try {
+      if (_ready && _zoom >= 9) near = _map.camera.center;
+    } catch (_) {}
+    final res = await Navigator.of(context).push<GeoPlace>(MaterialPageRoute(builder: (_) => MapSearchScreen(near: near)));
     if (res == null || !mounted) return;
     Store.i.addRecentPlace(res);
     _anim.move(res.point, res.kind == PlaceKind.city ? 11.5 : 15);
@@ -788,7 +793,9 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
         _reload();
         return;
       }
-      go(context, TripDetailsScreen(t, pax: _filter.seats));
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TripDetailsScreen(t, pax: _filter.seats)));
+      // ممكن انحجز شي: منحدّث المقاعد على الخريطة
+      if (mounted) _reload();
     });
   }
 
@@ -823,7 +830,11 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
             Wrap(spacing: 8, runSpacing: 8, children: [
               _action(Icons.near_me_rounded, 'رحلات من هون', () => _tripsFrom(p)),
               if (p.city != null || p.kind == PlaceKind.city) _action(Icons.flag_rounded, 'رحلات لـ ${p.city ?? p.name}', () => _setFilter(_filter.copyWith(to: p.city ?? p.name))),
-              _action(Icons.alt_route_rounded, 'المسار لهون', () => _routeTo(p)),
+              _action(Icons.alt_route_rounded, _routeFrom != null && _routeFrom!.name != 'موقعي' ? 'المسار من ${_routeFrom!.name} لهون' : 'المسار لهون', () => _routeTo(p)),
+              _action(Icons.trip_origin_rounded, 'ابدأ المسار من هون', () {
+                setState(() => _routeFrom = p);
+                toast(context, 'تمام، هلأ اختار الوجهة (ضغطة مطوّلة أو بحث)');
+              }),
               if (p.kind != PlaceKind.saved) _action(Icons.star_border_rounded, 'احفظ المكان', _savePicked),
               if (p.kind == PlaceKind.saved) _action(Icons.delete_outline_rounded, 'احذف من أماكني', () => _deleteSaved(p)),
             ]),
