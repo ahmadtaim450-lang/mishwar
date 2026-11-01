@@ -101,7 +101,10 @@ class Press extends StatefulWidget {
 class _PressState extends State<Press> {
   bool _down = false;
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        enabled: widget.onTap != null,
+        child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: (_) => setState(() => _down = true),
         onTapCancel: () => setState(() => _down = false),
@@ -113,6 +116,7 @@ class _PressState extends State<Press> {
                 widget.onTap!();
               },
         child: AnimatedScale(scale: _down ? .96 : 1, duration: const Duration(milliseconds: 120), child: widget.child),
+        ),
       );
 }
 

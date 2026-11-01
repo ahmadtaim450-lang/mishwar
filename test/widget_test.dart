@@ -80,6 +80,21 @@ void main() {
     }
   }
 
+  // خط مكبّر (إعدادات إمكانية الوصول) على موبايل عادي
+  for (final name in ['الرئيسية', 'النتائج', 'تفاصيل الرحلة', 'رحلاتي', 'التذكرة', 'حسابي', 'الدخول', 'طلب الانضمام']) {
+    testWidgets('$name بخط مكبّر 130%', (t) async {
+      t.view.physicalSize = const Size(390, 844) * 2;
+      t.view.devicePixelRatio = 2;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(MediaQuery(
+        data: const MediaQueryData(size: Size(390, 844), textScaler: TextScaler.linear(1.3)),
+        child: wrap(screens[name]!()),
+      ));
+      await settle(t);
+      expect(t.takeException(), isNull);
+    });
+  }
+
   testWidgets('البحث من الرئيسية بيفتح نتائج حقيقية', (t) async {
     t.view.physicalSize = const Size(390, 844) * 2;
     t.view.devicePixelRatio = 2;
