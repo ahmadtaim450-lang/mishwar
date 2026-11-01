@@ -131,6 +131,18 @@ jobs:
             exit 1
           fi
 
+      - name: Map screenshots (visual review)
+        continue-on-error: true
+        run: |
+          flutter test test/screenshots_test.dart --update-goldens --dart-define=SCREENSHOTS=true > shots.log 2>&1; tail -3 shots.log
+          ls test/screenshots || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: map-screenshots
+          path: test/screenshots/*.png
+          if-no-files-found: warn
+
       - name: Build APK
         shell: bash
         env:

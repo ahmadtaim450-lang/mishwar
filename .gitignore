@@ -16,3 +16,4 @@ assets/fonts/*.ttf
 assets/images/*.png
 assets/videos/
 supabase/functions/.env
+test/screenshots/
