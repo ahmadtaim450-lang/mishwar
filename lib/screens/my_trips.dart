@@ -320,7 +320,7 @@ class _TicketScreenState extends State<TicketScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: C.dark, width: 2)),
-                          child: Text(pending ? '•••••• ' : t.plate, style: const TextStyle(fontFamily: kFont, fontSize: 16, color: C.dark)),
+                          child: Text(pending ? '••••••' : (b.plate ?? t.plate), style: const TextStyle(fontFamily: kFont, fontSize: 16, color: C.dark)),
                         ),
                         const SizedBox(height: 4),
                         Text(t.car.split(' · ').last, style: T.small),
@@ -341,7 +341,7 @@ class _TicketScreenState extends State<TicketScreen> {
                       ),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('رمز الرحلة ⓘ', style: TextStyle(fontFamily: kFont, fontSize: 12.5, color: C.warn)),
-                        Text(pending ? '••••' : b.pin, style: const TextStyle(fontFamily: kFont, fontSize: 30, letterSpacing: 6, color: C.dark)),
+                        Text(pending || b.pin == null ? '••••' : b.pin!, style: const TextStyle(fontFamily: kFont, fontSize: 30, letterSpacing: 6, color: C.dark)),
                         const Text('السائق لازم يعرفو', style: TextStyle(fontFamily: kFont, fontSize: 12, color: C.dark)),
                       ]),
                     ),

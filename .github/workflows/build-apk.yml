@@ -102,6 +102,18 @@ jobs:
           grep -E "error •" analyze.txt | head -60 | while read -r l; do echo "::error::$l"; done
           grep -c "error •" analyze.txt || true
 
+      - name: Tests
+        shell: bash
+        run: |
+          set +e
+          flutter test --reporter expanded > test.log 2>&1
+          status=$?
+          tail -5 test.log
+          if [ $status -ne 0 ]; then
+            grep -E "\[E\]|Expected:|Actual:|Error:|FAIL|overflowed|Exception" test.log | head -60 | while read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
+
       - name: Build APK
         shell: bash
         run: |
