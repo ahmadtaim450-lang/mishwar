@@ -108,11 +108,23 @@ jobs:
         shell: bash
         run: |
           set +e
-          flutter test --reporter expanded > test.log 2>&1
+          flutter test --reporter expanded --file-reporter json:test.json > test.log 2>&1
           status=$?
           tail -3 test.log
-          echo "عدد الاختبارات بكل ملف:"
-          grep -oE "test/[a-z_/]+\.dart: " test.log | sort | uniq -c
+          echo "عدد الاختبارات الناجحة بكل ملف:"
+          python3 - <<'PY'
+          import json, collections
+          suites, tests, ok = {}, {}, collections.Counter()
+          for line in open('test.json'):
+              e = json.loads(line)
+              if e.get('type') == 'suite': suites[e['suite']['id']] = e['suite']['path'].split('/test/')[-1]
+              if e.get('type') == 'testStart':
+                  tests[e['test']['id']] = suites.get(e['test']['suiteID'], '?')
+              if e.get('type') == 'testDone' and e['result'] == 'success' and not e.get('hidden') and not e.get('skipped') and e['testID'] in tests:
+                  ok[tests[e['testID']]] += 1
+          for k, v in sorted(ok.items()): print(f'  {v:4d}  {k}')
+          print(f'  {sum(ok.values()):4d}  المجموع')
+          PY
           if [ $status -ne 0 ]; then
             msg=$(grep -E -A3 "was thrown|\[E\]|Expected:|Actual:|Error:|overflowed|(Row|Column|Flex|Text)[A-Za-z]*:file:///.*lib/" test.log | grep -v "widget_test.dart line\|══\|^--$\|^#[0-9]" | awk '!seen[$0]++' | head -250 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error::$msg"
