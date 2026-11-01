@@ -1,0 +1,35 @@
+name: Backend tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/backend.yml']
+  workflow_dispatch:
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (applies migrations)
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta,realtime
+
+      - name: Run database tests
+        shell: bash
+        run: |
+          set +e
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -X -v ON_ERROR_STOP=1 -f supabase/tests/flows_test.sql > db-test.log 2>&1
+          status=$?
+          grep -E "▶|✓" db-test.log
+          if [ $status -ne 0 ]; then
+            grep -E "ERROR|FAIL" db-test.log | head -20 | while read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
+
+      - name: Lint SQL (security advisor)
+        run: supabase db lint --level warning || true
