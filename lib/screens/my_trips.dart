@@ -295,7 +295,7 @@ class _TicketScreenState extends State<TicketScreen> {
                     const Divider(height: 26, color: Colors.white24),
                     Row(children: [
                       Expanded(child: Text('${seatsLabel(b.seats)}${b.family ? ' · عائلي' : ''}', style: const TextStyle(fontFamily: kFont, color: Colors.white))),
-                      Text('${money(b.total)} كاش', style: const TextStyle(fontFamily: kFont, fontSize: 17, color: C.yellow)),
+                      Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: Text('${money(b.total)} كاش', style: const TextStyle(fontFamily: kFont, fontSize: 17, color: C.yellow)))),
                     ]),
                   ]),
                 ),
