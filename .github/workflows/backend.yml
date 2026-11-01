@@ -3,7 +3,7 @@ name: Backend tests
 on:
   push:
     branches: [main]
-    paths: ['supabase/**', 'site/**', '.github/workflows/backend.yml']
+    paths: ['supabase/**', 'site/**', 'lib/data/**', 'test/integration/**', '.github/workflows/backend.yml']
   workflow_dispatch:
 
 jobs:
@@ -54,6 +54,28 @@ jobs:
           if [ $status -ne 0 ]; then
             tail -30 functions.log
             msg=$(grep -E "✗|Error" e2e.log | head -60 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error::$msg"
+            exit 1
+          fi
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter app ↔ Supabase integration test
+        shell: bash
+        run: |
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          mkdir -p assets/images assets/fonts
+          curl -fsSL -o assets/fonts/Lalezar-Regular.ttf https://github.com/google/fonts/raw/main/ofl/lalezar/Lalezar-Regular.ttf
+          flutter pub get > /dev/null
+          set +e
+          flutter test test/integration --reporter expanded --dart-define=SUPABASE_TEST_URL="$API_URL" --dart-define=SUPABASE_TEST_ANON="$ANON_KEY" --dart-define=SUPABASE_TEST_SERVICE="$SERVICE_ROLE_KEY" > it.log 2>&1
+          status=$?
+          tail -20 it.log
+          if [ $status -ne 0 ]; then
+            msg=$(grep -E -A4 "was thrown|Expected:|Actual:|Error|Exception|\[E\]" it.log | grep -v "^#[0-9]" | awk '!s[$0]++' | head -80 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error::$msg"
             exit 1
           fi

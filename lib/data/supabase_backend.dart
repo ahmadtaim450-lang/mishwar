@@ -9,7 +9,10 @@ import 'store.dart';
 
 /// الربط الحقيقي مع Supabase: كل العمليات الحساسة عن طريق دوال RPC محمية بالسيرفر.
 class SupabaseBackend implements Backend {
-  SupabaseClient get _c => Supabase.instance.client;
+  /// العميل ممكن ينمرق جاهز (اختبارات التكامل)، غير هيك منستعمل Supabase.instance.
+  final SupabaseClient? _client;
+  SupabaseBackend({SupabaseClient? client}) : _client = client;
+  SupabaseClient get _c => _client ?? Supabase.instance.client;
   final _changes = StreamController<void>.broadcast();
   RealtimeChannel? _channel;
 
@@ -23,6 +26,7 @@ class SupabaseBackend implements Backend {
 
   @override
   Future<void> init() async {
+    if (_client != null) return;
     await Supabase.initialize(url: AppConfig.supabaseUrl, anonKey: AppConfig.supabaseAnonKey);
     _c.auth.onAuthStateChange.listen((s) {
       if (s.event == AuthChangeEvent.signedIn || s.event == AuthChangeEvent.initialSession) _subscribe();
