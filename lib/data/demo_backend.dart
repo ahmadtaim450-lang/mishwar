@@ -8,6 +8,7 @@ import '../core/errors.dart';
 import '../map/geo_math.dart';
 import '../map/models.dart';
 import 'backend.dart';
+import 'wallet.dart';
 import 'mock.dart';
 import 'store.dart';
 
@@ -275,6 +276,13 @@ class DemoBackend implements Backend {
     if (q.state != 0) throw AppException('INVALID_STATE', AppException.messages['INVALID_STATE']!);
     final ride = _rides.firstWhere((r) => r.reqs.contains(q));
     if (accept && ride.booked + q.seats > ride.t.seatsTotal) throw AppException('NOT_ENOUGH_SEATS', AppException.messages['NOT_ENOUGH_SEATS']!);
+    if (accept) {
+      _seedWallet();
+      // نفس نظام السيرفر: العمولة من رصيد السائق لحظة القبول
+      final fee = _fee(ride.t.price, q.seats);
+      if (_balance - fee < -_creditLimit) throw AppException('WALLET_LOW', AppException.messages['WALLET_LOW']!);
+      _post('commission', -fee, note: 'حجز ${q.seats} مقعد · ${ride.t.from} ← ${ride.t.to}', ref: q.id);
+    }
     q.state = accept ? 1 : 2;
   }
 
@@ -282,7 +290,13 @@ class DemoBackend implements Backend {
   Future<void> cancelTrip(Trip t) async {
     await _wait();
     for (final r in _rides) {
-      if (r.t.id == t.id) r.status = 'cancelled';
+      if (r.t.id != t.id) continue;
+      r.status = 'cancelled';
+      // الحجوزات المؤكدة قبل الانطلاق: العمولة بترجع
+      for (final q in r.reqs.where((q) => q.state == 1)) {
+        final c = _ledger.where((e) => e.kind == 'commission' && e.ref == q.id).firstOrNull;
+        if (c != null && !_ledger.any((e) => e.kind == 'refund' && e.ref == q.id)) _post('refund', -c.amount, note: 'استرجاع عمولة حجز ملغى', ref: q.id);
+      }
     }
   }
 
@@ -565,4 +579,72 @@ class DemoBackend implements Backend {
 
   @override
   Future<(LatLng?, LatLng?)> tripPoints(Trip t) async => _tripPts[t.id] ?? (null, null);
+
+  // ── محفظة السائق (تجريبي: نفس قواعد السيرفر) ───────────────────────
+  static const _pct = 8, _minFee = 2000, _creditLimit = 0;
+  int _balance = 0;
+  final _ledger = <({String id, String kind, int amount, int balance, String note, DateTime at, String? ref})>[];
+  final _topups = <TopupRequest>[];
+  bool _walletSeeded = false;
+
+  int _fee(int price, int seats) {
+    final v = (price * seats * _pct / 100).round();
+    return v < _minFee ? _minFee : v;
+  }
+
+  void _post(String kind, int amount, {String note = '', String? ref}) {
+    _balance += amount;
+    _ledger.insert(0, (id: 'w${_ledger.length + 1}', kind: kind, amount: amount, balance: _balance, note: note, at: DateTime.now(), ref: ref));
+    if (amount < 0 && _balance - _minFee < -_creditLimit && _balance - amount - _minFee >= -_creditLimit) {
+      _notify('wallet.low', 'رصيدك خلص تقريباً', 'اشحن رصيدك لحتى تقدر تقبل حجوزات جديدة');
+    }
+  }
+
+  void _seedWallet() {
+    if (_walletSeeded) return;
+    _walletSeeded = true;
+    _post('topup', 50000, note: 'رصيد تجريبي');
+  }
+
+  @override
+  Future<Wallet> myWallet() async {
+    if (_driver != DStatus.approved && _driver != DStatus.suspended) throw AppException('NOT_APPROVED_DRIVER', AppException.messages['NOT_APPROVED_DRIVER']!);
+    _seedWallet();
+    final now = DateTime.now();
+    final month = _ledger.where((e) => e.at.year == now.year && e.at.month == now.month);
+    return Wallet(
+      balance: _balance,
+      commissionPct: _pct,
+      commissionMin: _minFee,
+      creditLimit: _creditLimit,
+      canAccept: _balance - _minFee >= -_creditLimit,
+      monthCommission: -month.where((e) => e.kind == 'commission').fold<int>(0, (a, e) => a + e.amount) - month.where((e) => e.kind == 'refund').fold<int>(0, (a, e) => a + e.amount),
+      entries: [for (final e in _ledger.take(50)) WalletEntry(id: e.id, kind: e.kind, amount: e.amount, balance: e.balance, note: e.note, at: e.at)],
+      requests: List.of(_topups),
+    );
+  }
+
+  @override
+  Future<void> requestTopup(int amount, TopupMethod method, String reference) async {
+    await _wait();
+    if (_driver != DStatus.approved && _driver != DStatus.suspended) throw AppException('NOT_APPROVED_DRIVER', AppException.messages['NOT_APPROVED_DRIVER']!);
+    if (amount < 10000 || amount > 5000000) throw AppException('INVALID_AMOUNT', AppException.messages['INVALID_AMOUNT']!);
+    final ref = reference.trim();
+    if (ref.length < 3 || ref.length > 80) throw AppException('INVALID_INPUT', AppException.messages['INVALID_INPUT']!);
+    if (_topups.where((r) => r.status == 'pending').length >= 3) throw AppException('TOPUP_PENDING_LIMIT', AppException.messages['TOPUP_PENDING_LIMIT']!);
+    if (_topups.any((r) => r.method == method.db && r.reference.toLowerCase() == ref.toLowerCase() && r.status != 'rejected')) {
+      throw AppException('DUPLICATE_REFERENCE', AppException.messages['DUPLICATE_REFERENCE']!);
+    }
+    _seedWallet();
+    final req = TopupRequest(id: 't${_topups.length + 1}', amount: amount, method: method.db, reference: ref, status: 'pending', at: DateTime.now());
+    _topups.insert(0, req);
+    // بالتجربة الإدارة "بتوافق" لحالها بعد شوي
+    _after(const Duration(seconds: 4), () {
+      final i = _topups.indexOf(req);
+      if (i < 0) return;
+      _topups[i] = TopupRequest(id: req.id, amount: amount, method: req.method, reference: ref, status: 'approved', at: req.at);
+      _post('topup', amount, note: 'شحن ${methodLabel(req.method)} · $ref');
+      _notify('wallet.topup', 'انشحن رصيدك', 'انضاف $amount ل.س لرصيدك');
+    });
+  }
 }

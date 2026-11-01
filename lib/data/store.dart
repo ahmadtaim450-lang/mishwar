@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../map/models.dart';
+import 'wallet.dart';
 import 'mock.dart';
 import '../core/errors.dart';
 import 'backend.dart';
@@ -500,6 +501,7 @@ class Store extends ChangeNotifier {
         await backend.respond(q, ok);
         q.state = ok ? 1 : 2;
         notifyListeners();
+        if (ok) unawaited(refreshWallet().then((_) {}, onError: (_) {}));
       });
 
   Future<void> cancelRide(MyRide r) => _guard(() async {
@@ -607,6 +609,20 @@ class Store extends ChangeNotifier {
         notifyListeners();
       });
 
+
+  // ── محفظة السائق ──────────────────────────────────────────────────
+  Wallet? wallet;
+
+  Future<Wallet> refreshWallet() => _guard(() async {
+        wallet = await backend.myWallet();
+        notifyListeners();
+        return wallet!;
+      });
+
+  Future<void> requestTopup(int amount, TopupMethod method, String reference) => _guard(() async {
+        await backend.requestTopup(amount, method, reference);
+        await refreshWallet();
+      });
 
   // ── الخرائط ────────────────────────────────────────────────────────
   final savedPlaces = <SavedPlace>[];

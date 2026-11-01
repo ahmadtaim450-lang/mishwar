@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/location.dart';
 import '../core/config.dart';
 import '../core/theme.dart';
+import 'wallet.dart';
 import 'driver_join.dart';
 import '../data/store.dart';
 import '../data/mock.dart';
@@ -68,6 +69,8 @@ class ProfileScreen extends StatelessWidget {
                   sub: switch (Store.i.driverStatus) { DStatus.none => 'انشر رحلاتك بعد مقابلة قصيرة', DStatus.reviewing => 'عم نراجع أوراقك', DStatus.interview => 'موعد المقابلة جاهز', DStatus.approved => Store.i.profile?.car ?? '', DStatus.rejected => 'ما انقبل الطلب، فيك تقدّم من جديد', DStatus.suspended => 'موقوف للمراجعة' },
                   onTap: () => go(context, Store.i.driverStatus == DStatus.none ? const DriverApplyFlow() : const DriverStatusScreen()),
                 ),
+                if (Store.i.driverStatus == DStatus.approved || Store.i.driverStatus == DStatus.suspended)
+                  RowItem(Icons.account_balance_wallet_outlined, 'محفظتي', sub: 'الرصيد والعمولات والشحن', onTap: () => go(context, const WalletScreen())),
                 RowItem(Icons.edit_outlined, 'تعديل الملف', onTap: () => go(context, const EditProfileScreen())),
                 RowItem(Icons.tune_rounded, 'تفضيلات السفر', onTap: () => go(context, const TravelPrefsScreen())),
                 RowItem(Icons.directions_car_outlined, 'سياراتي', sub: Store.i.profile?.car ?? 'ما في سيارة موثّقة', onTap: () => go(context, const CarsScreen())),

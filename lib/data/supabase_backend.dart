@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import '../map/geo_math.dart';
 import '../map/models.dart';
 import 'backend.dart';
+import 'wallet.dart';
 import 'mock.dart';
 import 'store.dart';
 
@@ -590,6 +591,14 @@ class SupabaseBackend implements Backend {
     LatLng? pt(dynamic v) => v is Map ? LatLng(_num(v['lat']), _num(v['lon'])) : null;
     return (pt(j['pickup']), pt(j['dropoff']));
   }
+
+  // ── محفظة السائق ──────────────────────────────────────────────────
+  @override
+  Future<Wallet> myWallet() async => Wallet.fromJson(await _rpc('my_wallet') as Map);
+
+  @override
+  Future<void> requestTopup(int amount, TopupMethod method, String reference) =>
+      _rpc('request_topup', {'p_amount': amount, 'p_method': method.db, 'p_reference': reference.trim()});
 
   // ── تحويل البيانات ─────────────────────────────────────────────────
   static String _cid(String name) => cityIds[name] ?? (throw const AppException('INVALID_ROUTE', 'الطريق مو صحيح، تأكد من المدن والوقفات'));

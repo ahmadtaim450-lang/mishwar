@@ -85,6 +85,7 @@ await p2.addInitScript(([tok, e]) => {
 }, [access, exp]);
 const places = [];
 let upsert = null;
+let reviewed = null;
 await p2.route('https://demo.supabase.co/**', async (r) => {
   const u = new URL(r.request().url());
   const send = (json, headers = {}) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-0/0', ...headers }, body: JSON.stringify(json) });
@@ -96,6 +97,10 @@ await p2.route('https://demo.supabase.co/**', async (r) => {
     return send('p1');
   }
   if (u.pathname.endsWith('/rest/v1/places')) return send(places);
+  if (u.pathname.endsWith('/rpc/admin_wallet_stats')) return send({ commission_month: 120000, topups_month: 900000, balances_total: 780000, drivers_low: 2, pending_topups: 1, agents: [{ label: 'مكتب كراج حمص', city: 'homs', active: true, month_total: 300000 }] });
+  if (u.pathname.endsWith('/rest/v1/topup_requests')) return send(reviewed ? [] : [{ id: 'q1', amount_syp: 250000, method: 'sham_cash', reference: '<img src=x>SC-1', created_at: new Date().toISOString(), driver: { full_name: 'سامر' } }]);
+  if (u.pathname.endsWith('/rest/v1/app_settings')) return send([{ key: 'commission_pct', value: 8 }, { key: 'commission_min_syp', value: 2000 }, { key: 'credit_limit_syp', value: 0 }, { key: 'payment_accounts', value: { sham_cash: '0999' } }]);
+  if (u.pathname.endsWith('/rpc/admin_review_topup')) { reviewed = JSON.parse(r.request().postData()); return send(null); }
   return send([]);
 });
 await p2.goto(`${base}/admin/`);
@@ -116,6 +121,16 @@ await p2.waitForSelector('text=كراج <b>حمص</b> الجديد', { timeout: 
 check((await p2.$$('.list b')).length === 0, 'اسم النقطة بينعرض كنص (ما في XSS)');
 check((await p2.$$('path.leaflet-interactive')).length === 1, 'النقطة ظهرت على الخريطة');
 await p2.screenshot({ path: '/tmp/admin_places.png' });
+
+await p2.click('nav [role=tab]:has-text("المحفظة")');
+await p2.waitForSelector('text=عمولات الشهر', { timeout: 5000 });
+check(await p2.isVisible('text=120,000 ل.س'), 'إيرادات العمولة ظاهرة');
+check((await p2.inputValue('#spct')) === '8' && (await p2.inputValue('#acc_sham')) === '0999', 'الإعدادات انقرت');
+check((await p2.$$('.item img')).length === 0, 'رقم العملية بينعرض كنص (ما في XSS)');
+await p2.click('button:has-text("تأكدت، اشحن")');
+await p2.waitForFunction(() => document.getElementById('toast').textContent.includes('انشحن'), null, { timeout: 5000 });
+check(reviewed && reviewed.p_request === 'q1' && reviewed.p_approve === true, 'الموافقة على الشحن انبعتت');
+await p2.screenshot({ path: '/tmp/admin_wallet.png', fullPage: true });
 await ctx2.close();
 
 check(errors.length === 0, `ما في أخطاء JavaScript ${errors.join(' | ')}`);

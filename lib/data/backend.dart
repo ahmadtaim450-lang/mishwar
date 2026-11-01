@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:latlong2/latlong.dart';
 import '../map/models.dart';
+import 'wallet.dart';
 import 'mock.dart';
 import 'store.dart';
 
@@ -77,4 +78,8 @@ abstract class Backend {
   Future<void> deletePlace(String id);
   Future<void> setTripPoints(Trip t, {LatLng? pickup, LatLng? dropoff});
   Future<(LatLng?, LatLng?)> tripPoints(Trip t);
+
+  // محفظة السائق
+  Future<Wallet> myWallet();
+  Future<void> requestTopup(int amount, TopupMethod method, String reference);
 }

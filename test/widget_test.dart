@@ -16,6 +16,7 @@ import 'package:mishwar/screens/publish.dart';
 import 'package:mishwar/screens/map_explore.dart';
 import 'package:mishwar/screens/map_search.dart';
 import 'package:mishwar/screens/pick_point.dart';
+import 'package:mishwar/screens/wallet.dart';
 import 'package:mishwar/map/map_widgets.dart';
 import 'package:mishwar/map/models.dart';
 import 'package:mishwar/map/tiles.dart';
@@ -80,6 +81,7 @@ void main() {
     'الخريطة لطريق': () => const MapExploreScreen(focusCity: 'حمص', to: 'دمشق', day: 1),
     'بحث الخريطة': () => const MapSearchScreen(),
     'نقطة التجمع': () => PickPointScreen(tripsFor('اللاذقية', 'دمشق').first),
+    'المحفظة (مو سائق)': () => const WalletScreen(),
   };
 
   for (final s in sizes.entries) {

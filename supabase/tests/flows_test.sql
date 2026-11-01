@@ -105,6 +105,76 @@ select t.ok((select verified from public.vehicles where owner_id = '00000000-000
 select t.ok((select count(*) from public.notifications where user_id = '00000000-0000-0000-0000-00000000000d' and kind = 'application.approved') = 1, 'approval notification');
 insert into t.ids values ('veh_d', (select id from public.vehicles where owner_id = '00000000-0000-0000-0000-00000000000d'));
 
+\echo '▶ محفظة السائق: الشحن والعمولة والحجب'
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+select t.ok((public.my_wallet() ->> 'balance')::int = 0 and not (public.my_wallet() ->> 'can_accept')::boolean, 'new driver: zero balance, cannot accept');
+-- رحلة فورية برصيد صفر: الفوري بيتسكّر لحالو
+insert into t.ids values ('wtrip', public.publish_trip((select v from t.ids where k = 'veh_d'), 'homs', 'hama', null, null, now() + interval '3 days', 60, 30000, 3, 'men', true));
+select t.ok(not (select instant from public.trips where id = (select v from t.ids where k = 'wtrip')), 'instant disabled without balance');
+select t.expect_error($$select public.request_topup(5000, 'sham_cash', 'TX-1')$$, 'INVALID_AMOUNT');
+select t.expect_error($$select public.request_topup(50000, 'agent', 'TX-1')$$, 'INVALID_INPUT');
+insert into t.ids values ('top1', public.request_topup(500000, 'sham_cash', 'SC-778899'));
+select t.expect_error($$select public.request_topup(100000, 'sham_cash', 'sc-778899')$$, 'DUPLICATE_REFERENCE');
+select t.expect_error($$insert into public.wallet_ledger (driver_id, kind, amount_syp, balance_after) values (auth.uid(), 'topup', 999999, 999999)$$, 'DENIED');
+select t.expect_error($$update public.wallets set balance_syp = 9999999 where driver_id = auth.uid()$$, 'DENIED');
+select t.expect_error($$select public.admin_wallet_entry(auth.uid(), 'topup', 999999, 'غش')$$, 'FORBIDDEN');
+select t.ok(jsonb_array_length(public.my_wallet() -> 'requests') = 1, 'driver sees own request');
+
+-- راكب بيطلب حجز، والسائق ما بيقدر يقبل برصيد صفر
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select t.expect_error($$select public.request_topup(50000, 'sham_cash', 'X-1')$$, 'NOT_APPROVED_DRIVER');
+select t.expect_error(format($$select public.admin_review_topup(%L, true)$$, (select v from t.ids where k = 'top1')), 'FORBIDDEN');
+select t.ok((select count(*) from public.topup_requests) = 0 and (select count(*) from public.wallets) = 0, 'rider cannot see wallets or requests');
+insert into t.ids values ('wb', (public.request_booking((select v from t.ids where k = 'wtrip'), 1) ->> 'id')::uuid);
+select t.ok((select status from public.bookings where id = (select v from t.ids where k = 'wb')) = 'pending', 'booking pending (instant was disabled)');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+select t.expect_error(format($$select public.respond_booking(%L, true)$$, (select v from t.ids where k = 'wb')), 'WALLET_LOW');
+select t.ok((select seats_available from public.trips where id = (select v from t.ids where k = 'wtrip')) = 3, 'failed accept changed nothing');
+
+-- الإدارة بتوافق على الشحن
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select public.admin_review_topup((select v from t.ids where k = 'top1'), true, 'تأكدنا من شام كاش');
+select t.expect_error(format($$select public.admin_review_topup(%L, true)$$, (select v from t.ids where k = 'top1')), 'INVALID_STATE');
+select t.ok((public.admin_wallet_stats() ->> 'topups_month')::int = 500000, 'admin stats: topups');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+select t.ok((public.my_wallet() ->> 'balance')::int = 500000 and (public.my_wallet() ->> 'can_accept')::boolean, 'topup credited');
+select t.ok(public.respond_booking((select v from t.ids where k = 'wb'), true) = 'confirmed', 'accept after topup');
+select t.ok((public.my_wallet() ->> 'balance')::int = 497600, 'commission 8% of 30000 = 2400');
+select t.ok((public.my_wallet() -> 'entries' -> 0 ->> 'kind') = 'commission', 'commission in ledger');
+select t.ok((public.my_wallet() ->> 'month_commission')::int = 2400, 'month commission');
+-- الفوري بيرجع يشتغل لما في رصيد
+reset role;
+update public.trips set instant = true where id = (select v from t.ids where k = 'wtrip');
+select t.ok((select instant from public.trips where id = (select v from t.ids where k = 'wtrip')), 'instant allowed with balance');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+-- إلغاء الرحلة قبل الانطلاق: العمولة بترجع
+select public.cancel_trip((select v from t.ids where k = 'wtrip'));
+select t.ok((public.my_wallet() ->> 'balance')::int = 500000, 'refund on cancel before departure');
+select t.ok((public.my_wallet() ->> 'month_commission')::int = 0, 'refund nets out commission');
+reset role;
+select t.expect_error($$update public.wallet_ledger set amount_syp = 1$$, 'LEDGER_IMMUTABLE');
+select t.expect_error($$delete from public.wallet_ledger$$, 'LEDGER_IMMUTABLE');
+select t.ok((select count(*) from public.notifications where user_id = '00000000-0000-0000-0000-00000000000d' and kind = 'wallet.topup') = 1, 'driver notified of topup');
+
+-- الوكيل المعتمد بيشحن كاش
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000009', true);
+select t.expect_error($$select public.agent_topup('963900000002', 50000)$$, 'FORBIDDEN');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select public.admin_set_agent('00000000-0000-0000-0000-000000000009', 'مكتب كراج حمص', 'homs', 100000, true);
+select t.expect_error($$select public.admin_set_setting('commission_pct', '50')$$, 'INVALID_INPUT');
+select public.admin_set_setting('commission_pct', '10');
+select public.admin_set_setting('commission_pct', '8');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000009', true);
+select t.expect_error($$select public.agent_topup('963900000004', 50000)$$, 'DRIVER_NOT_FOUND');
+select t.ok((public.agent_topup('+963 900 000 002', 60000) ->> 'driver') = 'سامر السائق', 'agent topup by phone');
+select t.expect_error($$select public.agent_topup('963900000002', 60000)$$, 'AGENT_LIMIT');
+reset role;
+select t.ok((select balance_syp from public.wallets where driver_id = '00000000-0000-0000-0000-00000000000d') = 560000, 'agent topup credited');
+select t.ok((select count(*) from public.audit_log where action like 'wallet.%') >= 4, 'wallet actions audited');
+
 \echo '▶ نشر رحلة'
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
@@ -173,6 +243,7 @@ select t.ok(jsonb_array_length(public.my_driver_trips() -> 0 -> 'bookings') = 1,
 select t.ok(public.respond_booking((select v from t.ids where k = 'b1'), true) = 'confirmed', 'accepted');
 select t.expect_error(format($$select public.respond_booking(%L, true)$$, (select v from t.ids where k = 'b1')), 'INVALID_STATE');
 select t.ok((select seats_available from public.trips where id = (select v from t.ids where k = 'trip')) = 1, 'seats decremented');
+select t.ok((select amount_syp from public.wallet_ledger where booking_id = (select v from t.ids where k = 'b1') and kind = 'commission') = -12000, 'commission 8% of 2×75000');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 select t.expect_error(format($$select public.request_booking(%L, 2)$$, (select v from t.ids where k = 'trip')), 'NOT_ENOUGH_SEATS');
@@ -184,7 +255,7 @@ select t.ok((public.booking_details((select v from t.ids where k = 'b1')) -> 'dr
 select t.ok(jsonb_array_length(public.my_bookings()) = 1, 'my bookings');
 insert into public.messages (booking_id, sender_id, body) values ((select v from t.ids where k = 'b1'), auth.uid(), 'وين نقطة الانطلاق بالزبط؟');
 select t.expect_error(format($$insert into public.messages (booking_id, sender_id, body) values (%L, '00000000-0000-0000-0000-00000000000d', 'انتحال')$$, (select v from t.ids where k = 'b1')), 'DENIED');
-select t.ok((select count(*) from public.notifications where kind = 'booking.confirmed') = 1, 'rider notified');
+select t.ok((select count(*) from public.notifications where kind = 'booking.confirmed' and data ->> 'booking_id' = (select v from t.ids where k = 'b1')::text) = 1, 'rider notified');
 
 \echo '▶ مشاركة الموقع والتتبع'
 insert into t.vals values ('token', public.create_share_link((select v from t.ids where k = 'b1'), 24));
@@ -321,6 +392,8 @@ select t.ok((select seats_available from public.trips where id = (select v from 
 select t.expect_error(format($$select public.cancel_booking(%L)$$, (select v from t.ids where k = 'b1')), 'INVALID_STATE');
 reset role;
 select t.ok(public.get_shared_trip((select v from t.vals where k = 'token')) is null, 'share link dies with cancelled booking');
+select t.ok((select amount_syp from public.wallet_ledger where booking_id = (select v from t.ids where k = 'b1') and kind = 'refund') = 12000, 'commission refunded on rider cancel');
+select t.ok((select count(*) from public.wallet_ledger where booking_id = (select v from t.ids where k = 'b1')) = 2, 'one commission + one refund');
 
 \echo '▶ إكمال الرحلة والتقييم'
 set local role authenticated;

@@ -64,6 +64,18 @@ denied(await rider.c.rpc('admin_stats'), 'FORBIDDEN', 'الراكب ما بيش�
 const prof = must(await driver.c.rpc('my_profile'), 'ملف السائق');
 ok(prof?.driver_status === 'approved' && prof?.vehicle?.verified === true, 'السائق صار موثّق وسيارتو مفحوصة');
 
+console.log('▶ محفظة السائق');
+let wal = must(await driver.c.rpc('my_wallet'), 'محفظة السائق');
+ok(wal?.balance === 0 && wal?.can_accept === false && wal?.commission_pct === 8, 'رصيد صفر، ما بيقدر يقبل');
+const topReq = must(await driver.c.rpc('request_topup', { p_amount: 300000, p_method: 'syriatel_cash', p_reference: `SY-${stamp}` }), 'طلب شحن');
+denied(await driver.c.rpc('request_topup', { p_amount: 300000, p_method: 'syriatel_cash', p_reference: `SY-${stamp}` }), 'DUPLICATE_REFERENCE', 'نفس رقم العملية مرفوض');
+denied(await driver.c.rpc('admin_review_topup', { p_request: topReq, p_approve: true, p_note: null }), 'FORBIDDEN', 'السائق ما بيوافق لحالو');
+denied(await driver.c.from('wallets').update({ balance_syp: 99999999 }).eq('driver_id', driver.id).select(), null, 'ما في تعديل مباشر للرصيد');
+ok((await admin.c.from('topup_requests').select('id').eq('status', 'pending')).data?.some((r) => r.id === topReq), 'الطلب ظاهر بلوحة الإدارة');
+must(await admin.c.rpc('admin_review_topup', { p_request: topReq, p_approve: true, p_note: 'تمام' }), 'الإدارة وافقت على الشحن');
+wal = must(await driver.c.rpc('my_wallet'), 'المحفظة بعد الشحن');
+ok(wal?.balance === 300000 && wal?.can_accept === true && wal.entries[0].kind === 'topup', 'الرصيد انشحن');
+
 console.log('▶ نشر وبحث وحجز');
 const dep = new Date(Date.now() + 26 * 3600e3);
 const tripId = must(await driver.c.rpc('publish_trip', { p_vehicle: prof.vehicle.id, p_from: 'latakia', p_to: 'damascus', p_from_spot: 'الكورنيش', p_to_spot: 'البرامكة', p_departure: dep.toISOString(), p_duration_min: 240, p_price: 75000, p_seats: 3, p_kind: 'men', p_instant: false, p_prefs: ['ممنوع التدخين'], p_note: null, p_stops: ['tartus', 'homs'] }), 'نشر رحلة');
@@ -85,6 +97,10 @@ det = must(await rider.c.rpc('booking_details', { p_booking: req.id }), 'تفا�
 ok(/^\d{4}$/.test(det.pin) && det.vehicle.plate?.startsWith('LAT'), 'الرمز والرقم ظهروا بعد الموافقة');
 const dtrips = must(await driver.c.rpc('my_driver_trips'), 'رحلات السائق');
 ok(dtrips?.[0]?.seats_available === 1 && dtrips[0].bookings.length === 1, 'المقاعد نقصت والطلب ظاهر');
+wal = must(await driver.c.rpc('my_wallet'), 'المحفظة بعد الحجز');
+ok(wal?.balance === 300000 - 12000 && wal.entries[0].kind === 'commission', 'انخصمت عمولة 8% (12,000)');
+const wstats = must(await admin.c.rpc('admin_wallet_stats'), 'أرقام المحفظة للإدارة');
+ok(wstats?.commission_month >= 12000, 'إيرادات العمولة ظاهرة للإدارة');
 
 console.log('▶ الرسائل والإشعارات');
 must(await rider.c.from('messages').insert({ booking_id: req.id, sender_id: rider.id, body: 'وين بالزبط؟' }), 'الراكب بعت رسالة');
@@ -105,6 +121,7 @@ denied(await driver.c.rpc('update_live_location', { p_trip: tripId, p_lat: 35.5,
 console.log('▶ الإلغاء');
 must(await rider.c.rpc('cancel_booking', { p_booking: req.id, p_reason: 'تغيّرت خطتي' }), 'الراكب لغى');
 ok((await anon.rpc('get_shared_trip', { p_token: token })).data === null, 'الرابط وقف بعد الإلغاء');
+ok((await driver.c.rpc('my_wallet')).data?.balance === 300000, 'العمولة رجعت للسائق بعد الإلغاء');
 ok((await driver.c.rpc('my_driver_trips')).data?.[0]?.seats_available === 3, 'المقاعد رجعت');
 
 console.log('▶ دوال السيرفر (Edge Functions)');

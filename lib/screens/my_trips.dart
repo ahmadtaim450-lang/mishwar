@@ -15,6 +15,8 @@ import 'profile.dart';
 import 'shell.dart';
 import 'publish.dart' show PublishFlow;
 import 'pick_point.dart';
+import 'wallet.dart';
+import '../core/errors.dart';
 import 'driver_join.dart';
 
 class MyTripsScreen extends StatefulWidget {
@@ -109,11 +111,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     }
     if (_s.rides.isEmpty) {
       return Column(key: const ValueKey('d0'), children: [
+        const WalletBanner(),
         const EmptyState(image: 'onboard2', title: 'ما نشرت رحلات لسا', body: 'طالع مشوار وعندك مقاعد فاضية؟ انشرها وقسّم المصروف مع ركاب موثّقين.'),
         Btn('انشر رحلة', icon: Icons.add_rounded, onTap: () => go(context, const PublishFlow())),
       ]);
     }
     return Column(key: const ValueKey('d'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const WalletBanner(),
+      const SizedBox(height: 10),
       Btn('انشر رحلة جديدة', kind: BtnKind.outline, icon: Icons.add_rounded, onTap: () => go(context, const PublishFlow())),
       const SizedBox(height: 14),
       for (final r in _s.rides) ...[
@@ -207,7 +212,16 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             padding: const EdgeInsets.only(top: 12),
                             child: Row(children: [
                               Expanded(
-                                child: AsyncBtn('قبول', onTap: r.booked + q.seats > r.t.seatsTotal ? null : () => _s.answer(q, true)),
+                                child: AsyncBtn('قبول', onTap: r.booked + q.seats > r.t.seatsTotal
+                                    ? null
+                                    : () async {
+                                        try {
+                                          await _s.answer(q, true);
+                                        } on AppException catch (e) {
+                                          if (e.code != 'WALLET_LOW') rethrow;
+                                          if (context.mounted) await showWalletLow(context);
+                                        }
+                                      }),
                               ),
                               const SizedBox(width: 10),
                               Expanded(child: AsyncBtn('رفض', kind: BtnKind.outline, onTap: () => _s.answer(q, false))),

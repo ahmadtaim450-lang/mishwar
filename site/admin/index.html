@@ -90,7 +90,7 @@
   function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 3500); }
   function err(e) {
     var m = (e && (e.message || e.error_description)) || 'خطأ';
-    var map = { POINT_TOO_FAR: 'النقطة بعيدة عن المدينة المختارة (لازم ضمن 40 كم)', OUTSIDE_SYRIA: 'النقطة برّا سوريا', FORBIDDEN: 'ما عندك صلاحية', DOCUMENTS_MISSING: 'في أوراق ناقصة بالطلب', INVALID_STATE: 'هالخطوة مو ممكنة بهالحالة', NOT_FOUND: 'مو موجود' };
+    var map = { WALLET_LOW: 'رصيد السائق ما بيكفي', INVALID_AMOUNT: 'المبلغ مو مسموح', DRIVER_NOT_FOUND: 'ما في سائق بهالرقم', POINT_TOO_FAR: 'النقطة بعيدة عن المدينة المختارة (لازم ضمن 40 كم)', OUTSIDE_SYRIA: 'النقطة برّا سوريا', FORBIDDEN: 'ما عندك صلاحية', DOCUMENTS_MISSING: 'في أوراق ناقصة بالطلب', INVALID_STATE: 'هالخطوة مو ممكنة بهالحالة', NOT_FOUND: 'مو موجود' };
     Object.keys(map).forEach(function (k) { if (m.indexOf(k) >= 0) m = map[k]; });
     toast(m);
   }
@@ -121,7 +121,7 @@
 
   function shell(counts) {
     var tabs = [['overview', 'نظرة عامة', null], ['apps', 'طلبات السائقين', counts.apps], ['reports', 'البلاغات', counts.reports], ['drivers', 'السائقين', null], ['trips', 'الرحلات', null]];
-    if (me.role === 'admin') { tabs.push(['places', 'نقاط التجمع', null]); tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
+    if (me.role === 'admin') { tabs.push(['wallet', 'المحفظة', counts.topups]); tabs.push(['places', 'نقاط التجمع', null]); tabs.push(['deletions', 'طلبات الحذف', counts.deletions]); tabs.push(['audit', 'سجل العمليات', null]); }
     return [
       el('header', {}, [el('h1', { text: 'مشوار · الإدارة' }), el('span', { 'class': 'who', text: me.full_name + ' · ' + (me.role === 'admin' ? 'مدير' : 'مشرف') }),
         el('button', { 'class': 'btn ghost', on: { click: function () { sb.auth.signOut().then(loginView); } }, text: 'خروج' })]),
@@ -137,7 +137,15 @@
     sb.auth.getSession().then(function (s) {
       if (!s.data.session) return loginView();
       sb.rpc('my_profile').then(function (r) {
-        if (r.error || !r.data || (r.data.role !== 'admin' && r.data.role !== 'moderator')) {
+        if (!r.error && r.data && r.data.role !== 'admin' && r.data.role !== 'moderator') {
+          // وكيل شحن معتمد؟ بيشوف شاشة الشحن بس
+          return sb.from('wallet_agents').select('label, active, daily_limit_syp').eq('user_id', r.data.id).maybeSingle().then(function (a) {
+            if (a.data && a.data.active) return agentView(r.data, a.data);
+            toast('هالحساب ما إلو صلاحية إدارة');
+            return sb.auth.signOut().then(loginView);
+          });
+        }
+        if (r.error || !r.data) {
           toast('هالحساب ما إلو صلاحية إدارة');
           return sb.auth.signOut().then(loginView);
         }
@@ -150,13 +158,173 @@
     Promise.all([
       sb.from('driver_applications').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'reviewing']),
       sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-      sb.from('profiles').select('id', { count: 'exact', head: true }).not('deletion_requested_at', 'is', null)
+      sb.from('profiles').select('id', { count: 'exact', head: true }).not('deletion_requested_at', 'is', null),
+      sb.from('topup_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
     ]).then(function (r) {
-      app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0, deletions: r[2].count || 0 }));
-      ({ overview: overviewView, trips: tripsView, apps: appsView, reports: reportsView, drivers: driversView, places: placesView, deletions: deletionsView, audit: auditView })[tab]();
+      app.replaceChildren.apply(app, shell({ apps: r[0].count || 0, reports: r[1].count || 0, deletions: r[2].count || 0, topups: r[3].count || 0 }));
+      ({ overview: overviewView, trips: tripsView, apps: appsView, reports: reportsView, drivers: driversView, wallet: walletView, places: placesView, deletions: deletionsView, audit: auditView })[tab]();
     });
   }
   function main() { return document.getElementById('main'); }
+
+  // ── شاشة الوكيل المعتمد: شحن رصيد سائق بالكاش ──
+  function agentView(profile, agent) {
+    var phone = el('input', { id: 'agphone', inputmode: 'tel', dir: 'ltr', required: true, placeholder: '09xxxxxxxx' });
+    var amount = el('input', { id: 'agamount', inputmode: 'numeric', dir: 'ltr', required: true });
+    var btn = el('button', { 'class': 'btn', type: 'submit', text: 'اشحن' });
+    var log = el('div', {});
+    function norm(v) { var d = v.replace(/[^0-9]/g, ''); if (d.indexOf('00963') === 0) d = d.slice(5); if (d.indexOf('963') === 0) d = d.slice(3); if (d.indexOf('0') === 0) d = d.slice(1); return '963' + d; }
+    var form = el('form', { 'class': 'card login', style: 'margin-top:4vh', on: { submit: function (ev) {
+      ev.preventDefault();
+      var n = Number(amount.value);
+      if (!confirm('تأكيد: قبضت ' + n.toLocaleString('en-US') + ' ل.س كاش من السائق؟')) return;
+      btn.disabled = true;
+      sb.rpc('agent_topup', { p_driver_phone: norm(phone.value), p_amount: n }).then(function (r) {
+        btn.disabled = false;
+        if (r.error) return err(r.error);
+        toast('انشحن رصيد ' + r.data.driver);
+        log.prepend(el('div', { 'class': 'muted', text: new Date().toLocaleTimeString('ar-SY') + ' · ' + r.data.driver + ' · ' + n.toLocaleString('en-US') + ' ل.س' }));
+        form.reset();
+      });
+    } } }, [el('h2', { text: 'شحن رصيد سائق' }), el('p', { 'class': 'muted', text: agent.label + ' · الحد اليومي ' + Number(agent.daily_limit_syp).toLocaleString('en-US') + ' ل.س' }),
+      el('label', { 'for': 'agphone', text: 'رقم موبايل السائق' }), phone, el('label', { 'for': 'agamount', text: 'المبلغ اللي قبضتو (ل.س)' }), amount,
+      el('div', { 'class': 'actions' }, [btn, el('button', { 'class': 'btn ghost', type: 'button', text: 'خروج', on: { click: function () { sb.auth.signOut().then(loginView); } } })]),
+      el('h3', { text: 'عمليات هالجلسة' }), log]);
+    app.replaceChildren(form);
+  }
+
+  // ── محفظة السائقين: طلبات الشحن، الحركات اليدوية، الوكلاء، والإعدادات ──
+  function walletView() {
+    var METHOD = { sham_cash: 'شام كاش', syriatel_cash: 'سيريتل كاش', mtn_cash: 'MTN كاش', agent: 'وكيل', office: 'المكتب' };
+    var KIND = { topup: 'شحن', adjustment: 'تصحيح (+/−)', earning: 'أرباح أونلاين', payout: 'تسوية (دفع للسائق)' };
+    function money(v) { return Number(v || 0).toLocaleString('en-US') + ' ل.س'; }
+    var tiles = el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:12px' });
+    var pending = el('div', { 'class': 'card' }, [el('h3', { text: 'طلبات شحن بانتظار التأكيد' })]);
+    var pendingList = el('div', {}); pending.appendChild(pendingList);
+
+    // حركة يدوية
+    var drv = el('select', { id: 'wdrv' });
+    var kind = el('select', { id: 'wkind' }, Object.keys(KIND).map(function (k) { return el('option', { value: k, text: KIND[k] }); }));
+    var amt = el('input', { id: 'wamt', inputmode: 'numeric', dir: 'ltr', required: true });
+    var note = el('input', { id: 'wnote', maxlength: '300', required: true, placeholder: 'مثلاً: شحن كاش بمكتب حمص' });
+    var wbtn = el('button', { 'class': 'btn', type: 'submit', text: 'سجّل الحركة' });
+    var entryForm = el('form', { 'class': 'card', on: { submit: function (ev) {
+      ev.preventDefault(); wbtn.disabled = true;
+      sb.rpc('admin_wallet_entry', { p_driver: drv.value, p_kind: kind.value, p_amount: Number(amt.value), p_note: note.value }).then(function (r) {
+        wbtn.disabled = false;
+        if (r.error) return err(r.error);
+        toast('انسجلت · الرصيد الجديد ' + money(r.data)); entryForm.reset(); load();
+      });
+    } } }, [el('h3', { text: 'حركة يدوية' }), el('label', { 'for': 'wdrv', text: 'السائق' }), drv,
+      el('div', { 'class': 'row2' }, [el('div', {}, [el('label', { 'for': 'wkind', text: 'النوع' }), kind]), el('div', {}, [el('label', { 'for': 'wamt', text: 'المبلغ (ل.س)' }), amt])]),
+      el('label', { 'for': 'wnote', text: 'ملاحظة (إجبارية)' }), note, el('div', { 'class': 'actions' }, [wbtn])]);
+
+    // الإعدادات
+    var pct = el('input', { id: 'spct', inputmode: 'decimal', dir: 'ltr' });
+    var minF = el('input', { id: 'smin', inputmode: 'numeric', dir: 'ltr' });
+    var credit = el('input', { id: 'scredit', inputmode: 'numeric', dir: 'ltr' });
+    var accs = { sham_cash: el('input', { id: 'acc_sham', dir: 'ltr' }), syriatel_cash: el('input', { id: 'acc_sy', dir: 'ltr' }), mtn_cash: el('input', { id: 'acc_mtn', dir: 'ltr' }) };
+    var sbtn = el('button', { 'class': 'btn dark', type: 'submit', text: 'احفظ الإعدادات' });
+    var settingsForm = el('form', { 'class': 'card', on: { submit: function (ev) {
+      ev.preventDefault(); sbtn.disabled = true;
+      var accounts = {}; Object.keys(accs).forEach(function (k) { if (accs[k].value.trim()) accounts[k] = accs[k].value.trim(); });
+      Promise.all([
+        sb.rpc('admin_set_setting', { p_key: 'commission_pct', p_value: Number(pct.value) }),
+        sb.rpc('admin_set_setting', { p_key: 'commission_min_syp', p_value: Number(minF.value) }),
+        sb.rpc('admin_set_setting', { p_key: 'credit_limit_syp', p_value: Number(credit.value) }),
+        sb.rpc('admin_set_setting', { p_key: 'payment_accounts', p_value: accounts })
+      ]).then(function (rs) {
+        sbtn.disabled = false;
+        var bad = rs.filter(function (x) { return x.error; })[0];
+        if (bad) return err(bad.error);
+        toast('انحفظت الإعدادات');
+      });
+    } } }, [el('h3', { text: 'الإعدادات' }),
+      el('div', { 'class': 'row2' }, [el('div', {}, [el('label', { 'for': 'spct', text: 'العمولة %' }), pct]), el('div', {}, [el('label', { 'for': 'smin', text: 'أقل عمولة (ل.س)' }), minF])]),
+      el('label', { 'for': 'scredit', text: 'قديش مسموح الرصيد ينزل تحت الصفر (ل.س)' }), credit,
+      el('label', { 'for': 'acc_sham', text: 'رقم حساب مشوار · شام كاش' }), accs.sham_cash,
+      el('label', { 'for': 'acc_sy', text: 'رقم حساب مشوار · سيريتل كاش' }), accs.syriatel_cash,
+      el('label', { 'for': 'acc_mtn', text: 'رقم حساب مشوار · MTN كاش' }), accs.mtn_cash,
+      el('div', { 'class': 'actions' }, [sbtn])]);
+
+    // الوكلاء
+    var agentsList = el('div', {});
+    var agUser = el('select', { id: 'aguser' });
+    var agLabel = el('input', { id: 'aglabel', maxlength: '80', required: true, placeholder: 'مكتب كراج حمص' });
+    var agCity = el('select', { id: 'agcity' }, Object.keys(CITY).map(function (k) { return el('option', { value: k, text: CITY[k] }); }));
+    var agLimit = el('input', { id: 'aglimit', inputmode: 'numeric', dir: 'ltr', value: '2000000' });
+    var abtn = el('button', { 'class': 'btn', type: 'submit', text: 'اعتمد الوكيل' });
+    var agentForm = el('form', { 'class': 'card', on: { submit: function (ev) {
+      ev.preventDefault(); abtn.disabled = true;
+      sb.rpc('admin_set_agent', { p_user: agUser.value, p_label: agLabel.value, p_city: agCity.value, p_daily_limit: Number(agLimit.value), p_active: true }).then(function (r) {
+        abtn.disabled = false; if (r.error) return err(r.error); toast('انعتمد الوكيل'); agentForm.reset(); load();
+      });
+    } } }, [el('h3', { text: 'الوكلاء المعتمدين' }), el('p', { 'class': 'muted', text: 'الوكيل بيقبض كاش من السائق وبيشحنلو برقم موبايلو، وبيسلّم المبلغ للمكتب. مجموع كل وكيل بالشهر ظاهر تحت.' }),
+      agentsList, el('label', { 'for': 'aguser', text: 'الحساب' }), agUser, el('label', { 'for': 'aglabel', text: 'اسم الوكيل' }), agLabel,
+      el('div', { 'class': 'row2' }, [el('div', {}, [el('label', { 'for': 'agcity', text: 'المدينة' }), agCity]), el('div', {}, [el('label', { 'for': 'aglimit', text: 'الحد اليومي (ل.س)' }), agLimit])]),
+      el('div', { 'class': 'actions' }, [abtn])]);
+
+    var ledger = el('div', { 'class': 'card' }, [el('h3', { text: 'آخر الحركات' })]);
+    var ledgerBox = el('div', {}); ledger.appendChild(ledgerBox);
+
+    main().replaceChildren(tiles, el('div', { 'class': 'grid' }, [el('div', {}, [entryForm, settingsForm, agentForm]), el('div', {}, [pending, ledger])]));
+
+    function load() {
+      sb.rpc('admin_wallet_stats').then(function (r) {
+        if (r.error) return err(r.error);
+        var d = r.data;
+        tiles.replaceChildren.apply(tiles, [['عمولات الشهر', money(d.commission_month)], ['شحن الشهر', money(d.topups_month)], ['مجموع أرصدة السائقين', money(d.balances_total)],
+          ['سائقين رصيدهن خلص', String(d.drivers_low)], ['طلبات شحن معلّقة', String(d.pending_topups)]].map(function (t) {
+          return el('div', { 'class': 'card', style: 'margin:0' }, [el('div', { 'class': 'muted', text: t[0] }), el('div', { style: 'font-size:24px', text: t[1] })]);
+        }));
+        agentsList.replaceChildren.apply(agentsList, d.agents.length ? d.agents.map(function (a) {
+          return el('div', { style: 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1.5px solid #EEF1F1' }, [
+            el('span', { text: a.label + ' · ' + (CITY[a.city] || '') + (a.active ? '' : ' · موقوف') }), el('span', { 'class': 'badge', text: money(a.month_total) + ' هالشهر' })]);
+        }) : [el('div', { 'class': 'muted', text: 'لسا ما في وكلاء' })]);
+      });
+      sb.from('app_settings').select('key, value').then(function (r) {
+        if (r.error) return;
+        var v = {}; r.data.forEach(function (x) { v[x.key] = x.value; });
+        pct.value = v.commission_pct; minF.value = v.commission_min_syp; credit.value = v.credit_limit_syp;
+        var a = v.payment_accounts || {}; Object.keys(accs).forEach(function (k) { accs[k].value = a[k] || ''; });
+      });
+      sb.from('profiles').select('id, full_name, driver_status').neq('driver_status', 'none').order('full_name').limit(500).then(function (r) {
+        if (r.error) return;
+        drv.replaceChildren.apply(drv, r.data.map(function (p) { return el('option', { value: p.id, text: p.full_name + (p.driver_status === 'approved' ? '' : ' · ' + p.driver_status) }); }));
+      });
+      sb.from('profiles').select('id, full_name').order('full_name').limit(500).then(function (r) {
+        if (r.error) return;
+        agUser.replaceChildren.apply(agUser, r.data.map(function (p) { return el('option', { value: p.id, text: p.full_name || p.id }); }));
+      });
+      sb.from('topup_requests').select('id, amount_syp, method, reference, created_at, driver:profiles!topup_requests_driver_id_fkey(full_name)').eq('status', 'pending').order('created_at').limit(100).then(function (r) {
+        if (r.error) return err(r.error);
+        pendingList.replaceChildren();
+        if (!r.data.length) return pendingList.appendChild(el('div', { 'class': 'muted', text: 'ما في طلبات معلّقة' }));
+        r.data.forEach(function (q) {
+          function decide(ok) {
+            var reason = ok ? null : prompt('سبب الرفض (بيوصل للسائق):', 'ما لقينا التحويل');
+            if (!ok && reason === null) return;
+            sb.rpc('admin_review_topup', { p_request: q.id, p_approve: ok, p_note: reason }).then(function (x) { if (x.error) return err(x.error); toast(ok ? 'انشحن الرصيد' : 'انرفض الطلب'); load(); });
+          }
+          pendingList.appendChild(el('div', { 'class': 'item', style: 'cursor:default;flex-wrap:wrap' }, [
+            el('div', { style: 'flex:1;min-width:180px' }, [el('div', { text: (q.driver ? q.driver.full_name : '') + ' · ' + money(q.amount_syp) }),
+              el('div', { 'class': 'muted', text: (METHOD[q.method] || q.method) + ' · رقم العملية: ' + q.reference + ' · ' + fmt(q.created_at) })]),
+            el('button', { 'class': 'btn ok', type: 'button', text: 'تأكدت، اشحن', on: { click: function () { decide(true); } } }),
+            el('button', { 'class': 'btn bad', type: 'button', text: 'ارفض', on: { click: function () { decide(false); } } })]));
+        });
+      });
+      sb.from('wallet_ledger').select('id, kind, amount_syp, balance_after, note, created_at, driver:profiles!wallet_ledger_driver_id_fkey(full_name)').order('created_at', { ascending: false }).limit(60).then(function (r) {
+        if (r.error) return err(r.error);
+        var K = { topup: 'شحن', commission: 'عمولة', refund: 'استرجاع', adjustment: 'تصحيح', earning: 'أرباح', payout: 'تسوية' };
+        ledgerBox.replaceChildren(r.data.length ? el('table', {}, [el('thead', {}, [el('tr', {}, ['الوقت', 'السائق', 'النوع', 'المبلغ', 'الرصيد', 'ملاحظة'].map(function (h) { return el('th', { text: h }); }))]),
+          el('tbody', {}, r.data.map(function (x) {
+            return el('tr', {}, [el('td', { text: fmt(x.created_at) }), el('td', { text: x.driver ? x.driver.full_name : '' }), el('td', { text: K[x.kind] || x.kind }),
+              el('td', { dir: 'ltr', text: (x.amount_syp > 0 ? '+' : '') + Number(x.amount_syp).toLocaleString('en-US') }), el('td', { dir: 'ltr', text: Number(x.balance_after).toLocaleString('en-US') }), el('td', { text: x.note || '' })]);
+          }))]) : el('div', { 'class': 'muted', text: 'لسا ما في حركات' }));
+      });
+    }
+    load();
+  }
 
   // ── نقاط التجمع والكراجات (بتبين للركاب بالبحث وعلى الخريطة) ──
   function placesView() {

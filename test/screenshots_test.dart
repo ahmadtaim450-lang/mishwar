@@ -9,10 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mishwar/core/theme.dart';
 import 'package:mishwar/data/demo_backend.dart';
 import 'package:mishwar/data/store.dart';
+import 'package:mishwar/data/wallet.dart';
 import 'package:mishwar/map/tiles.dart';
 import 'package:mishwar/screens/map_explore.dart';
 import 'package:mishwar/screens/map_search.dart';
 import 'package:mishwar/screens/pick_point.dart';
+import 'package:mishwar/screens/wallet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const enabled = bool.fromEnvironment('SCREENSHOTS');
@@ -92,4 +94,21 @@ void main() {
   testWidgets('نقطة التجمع', (t) => shot(t, 'pick_point', PickPointScreen(tripsFor('اللاذقية', 'دمشق').first)), skip: !enabled);
   testWidgets('الخريطة: موبايل صغير', (t) => shot(t, 'map_small', const MapExploreScreen(day: 1), size: const Size(320, 568)), skip: !enabled);
   testWidgets('الخريطة: تابلت', (t) => shot(t, 'map_tablet', const MapExploreScreen(focusCity: 'اللاذقية', day: 1), size: const Size(768, 1024)), skip: !enabled);
+  testWidgets('المحفظة', (t) async {
+    final b = DemoBackend(delay: Duration.zero);
+    await t.runAsync(() async {
+      await b.verifyOtp('+963912345678', '123456');
+      await b.completeProfile('سامر السائق', false);
+      await b.submitApplication(DriverApp()..city = 'اللاذقية'..car = 'كيا'..year = '2015'..color = 'فضي'..plate = 'ب 1'..slot = '10:00', (_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      b.approveAfterInterview();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await Store.i.start(b);
+      final tr = await b.publishTrip(tripsFor('اللاذقية', 'دمشق').first);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await b.respond((await b.myRides()).firstWhere((r) => r.t.id == tr.id).reqs.first, true);
+      await b.requestTopup(100000, TopupMethod.shamCash, 'SC-1234');
+    });
+    await shot(t, 'wallet', const WalletScreen());
+  }, skip: !enabled);
 }

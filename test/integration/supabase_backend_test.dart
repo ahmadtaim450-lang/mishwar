@@ -8,6 +8,7 @@ import 'package:mishwar/data/mock.dart';
 import 'package:mishwar/data/store.dart';
 import 'package:mishwar/data/supabase_backend.dart';
 import 'package:mishwar/map/models.dart';
+import 'package:mishwar/data/wallet.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -77,6 +78,20 @@ void main() {
     expect(dp!.driverStatus, DStatus.approved);
     expect(dp.car, 'كيا ريو · فضي');
     expect(dp.vehicleId, isNotNull);
+
+    // المحفظة: رصيد صفر، طلب شحن، والإدارة بتوافق
+    var wal = await driver.myWallet();
+    expect(wal.balance, 0);
+    expect(wal.canAccept, isFalse);
+    await driver.requestTopup(500000, TopupMethod.shamCash, 'SC-$stamp');
+    await expectLater(() => driver.requestTopup(500000, TopupMethod.shamCash, 'sc-$stamp'), throwsA(predicate((e) => AppException.from(e!).code == 'DUPLICATE_REFERENCE')));
+    wal = await driver.myWallet();
+    expect(wal.requests.single.status, 'pending');
+    await adminC.rpc('admin_review_topup', params: {'p_request': wal.requests.single.id, 'p_approve': true, 'p_note': null});
+    wal = await driver.myWallet();
+    expect(wal.balance, 500000);
+    expect(wal.canAccept, isTrue);
+    expect(wal.entries.first.kind, 'topup');
 
     // الصورة الشخصية بتظهر للركاب
     await driver.uploadAvatar(jpeg);
@@ -153,6 +168,9 @@ void main() {
     expect(ride.reqs.single.seats, 2);
     expect(ride.reqs.single.note, 'معي شنتاية');
     await driver.respond(ride.reqs.single, true);
+    wal = await driver.myWallet();
+    expect(wal.balance, 500000 - 12000, reason: 'عمولة 8% من مقعدين × 75,000');
+    expect(wal.entries.first.kind, 'commission');
     final d = await rider.bookingDetails(b);
     expect(d.status, BStatus.confirmed);
     expect(d.pin, matches(RegExp(r'^\d{4}$')));
@@ -185,5 +203,6 @@ void main() {
     await rider.cancelBooking(d, 'تغيّرت خطتي');
     expect((await rider.myBookings()).where((x) => x.id == b.id), isEmpty);
     expect((await driver.myRides()).firstWhere((r) => r.t.id == t.id).t.seatsLeft, 3);
+    expect((await driver.myWallet()).balance, 500000, reason: 'العمولة رجعت بعد الإلغاء');
   }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
 }
