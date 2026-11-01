@@ -9,6 +9,8 @@ import '../data/store.dart';
 import '../data/wallet.dart';
 import '../widgets/common.dart';
 
+String _bookings(int n) => n == 1 ? 'حجز واحد' : n == 2 ? 'حجزين' : n <= 10 ? '$n حجوزات' : '$n حجز';
+
 String signedMoney(int v) => '${v > 0 ? '+' : v < 0 ? '−' : ''}${money(v.abs())}';
 
 class WalletScreen extends StatefulWidget {
@@ -123,7 +125,7 @@ class _BalanceCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          low ? 'اشحن رصيدك لحتى ترجع توصلك حجوزات، والحجز الفوري بيرجع يشتغل.' : 'بيكفي لحوالي ${w.bookingsLeft(50000)} حجز (لمقعد سعرو 50 ألف) · عمولة الشهر ${money(w.monthCommission)}',
+          low ? 'اشحن رصيدك لحتى ترجع توصلك حجوزات، والحجز الفوري بيرجع يشتغل.' : 'بيكفي لحوالي ${_bookings(w.bookingsLeft(50000))} (لمقعد سعرو 50 ألف) · عمولة الشهر ${money(w.monthCommission)}',
           style: const TextStyle(fontFamily: kFont, color: Colors.white70, fontSize: 13),
         ),
         const SizedBox(height: 14),
