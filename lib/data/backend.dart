@@ -52,4 +52,5 @@ abstract class Backend {
   Future<List<AppNotification>> notifications();
   Future<void> markNotificationsRead();
   Future<void> registerDevice(String token, String platform);
+  Future<void> unregisterDevice(String token);
 }

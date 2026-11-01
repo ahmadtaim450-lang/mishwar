@@ -13,6 +13,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light));
   Store.onSignedIn = Push.start;
+  Store.onSigningOut = Push.stop;
   // Supabase إذا في مفاتيح، غير هيك الوضع التجريبي
   try {
     await Store.i.start(AppConfig.live ? SupabaseBackend() : DemoBackend());

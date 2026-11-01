@@ -36,7 +36,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: _s,
         builder: (context, _) => SafeArea(
-          child: ListView(padding: const EdgeInsets.all(20), children: [
+          child: RefreshIndicator(
+            color: C.primary,
+            onRefresh: _s.refreshAll,
+            child: ListView(padding: const EdgeInsets.all(20), physics: const AlwaysScrollableScrollPhysics(), children: [
             const Text('رحلاتي', style: T.h1),
             const SizedBox(height: 12),
             Container(
@@ -61,6 +64,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
             const SizedBox(height: 16),
             AnimatedSwitcher(duration: const Duration(milliseconds: 260), child: _tab == 0 ? _rider() : _driver()),
           ]),
+          ),
         ),
       );
 
@@ -135,7 +139,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
           padding: const EdgeInsets.only(top: 10),
           child: Row(children: [
             if (r.status == 'scheduled') ...[
-              Expanded(child: AsyncBtn('بلّشت الرحلة', kind: BtnKind.dark, icon: Icons.play_arrow_rounded, onTap: () => _s.startRide(r))),
+              Expanded(child: AsyncBtn('بلّشت الرحلة', kind: BtnKind.dark, icon: Icons.play_arrow_rounded, onTap: () async {
+                await _s.startRide(r);
+                if (mounted) go(context, DriverLiveScreen(r));
+              })),
               const SizedBox(width: 8),
               Expanded(child: AsyncBtn('إلغاء الرحلة', kind: BtnKind.outline, onTap: () async {
                 final ok = await showDialog<bool>(
@@ -152,7 +159,11 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 if (ok == true) await _s.cancelRide(r);
               })),
             ],
-            if (r.status == 'in_progress') Expanded(child: AsyncBtn('وصلنا، خلصت الرحلة', icon: Icons.flag_rounded, onTap: () => _s.finishRide(r))),
+            if (r.status == 'in_progress') ...[
+              Expanded(child: Btn('شاشة الرحلة', kind: BtnKind.dark, icon: Icons.navigation_rounded, onTap: () => go(context, DriverLiveScreen(r)))),
+              const SizedBox(width: 8),
+              Expanded(child: AsyncBtn('وصلنا', icon: Icons.flag_rounded, onTap: () => _s.finishRide(r))),
+            ],
             if (r.status == 'completed') const Expanded(child: Badge2('الرحلة خلصت ✓')),
           ]),
         ),
@@ -526,6 +537,101 @@ class _LiveTripScreenState extends State<LiveTripScreen> with SingleTickerProvid
           ]);
         },
       ),
+    );
+  }
+}
+
+/// شاشة السائق أثناء الرحلة: موقعو الحقيقي بينبعت كل شوي، فالركاب وأهلن بيتابعوا.
+class DriverLiveScreen extends StatefulWidget {
+  final MyRide r;
+  const DriverLiveScreen(this.r);
+  @override
+  State<DriverLiveScreen> createState() => _DriverLiveScreenState();
+}
+
+class _DriverLiveScreenState extends State<DriverLiveScreen> {
+  StreamSubscription<Position>? _sub;
+  LatLng? _me;
+  DateTime? _sent;
+  bool _noGps = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  Future<void> _start() async {
+    final p = await myPosition();
+    if (!mounted) return;
+    if (p == null) {
+      setState(() => _noGps = true);
+      return;
+    }
+    _push(p);
+    _sub = Geolocator.getPositionStream(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 50)).listen((p) {
+      if (mounted) _push(p);
+    });
+  }
+
+  void _push(Position p) {
+    setState(() => _me = LatLng(p.latitude, p.longitude));
+    // كل 20 ثانية عالأكتر، لحتى ما نستهلك البطارية والباقة
+    if (_sent == null || DateTime.now().difference(_sent!).inSeconds >= 20) {
+      _sent = DateTime.now();
+      Store.i.updateLocation(widget.r.t, p.latitude, p.longitude, accuracy: p.accuracy, heading: p.heading);
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.r.t;
+    final riders = widget.r.reqs.where((q) => q.state == 1).toList();
+    return Scaffold(
+      body: Stack(children: [
+        Positioned.fill(bottom: 230, child: TripMap(cities: [t.from, ...t.stops, t.to], me: _me)),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              SquareBtn(Icons.arrow_forward_rounded, tooltip: 'رجوع', onTap: () => Navigator.pop(context)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: _noGps ? C.warnBg : const Color(0xFF1E9E5A), borderRadius: BorderRadius.circular(12)),
+                child: Text(_noGps ? 'شغّل الموقع لحتى يتابعك الركاب' : (_me == null ? 'عم نحدد موقعك...' : '● موقعك عم ينشارك'), style: TextStyle(fontFamily: kFont, fontSize: 12, color: _noGps ? C.warn : Colors.white)),
+              ),
+            ]),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+            child: SafeArea(
+              top: false,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${t.from} ← ${t.to}', style: T.h3),
+                Text(riders.isEmpty ? 'ما في ركاب مؤكّدين' : 'معك: ${riders.map((q) => q.p.name).join('، ')}', style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+                const InfoNote('قبل ما تنطلق، تأكد من رمز الرحلة مع كل راكب.', icon: Icons.pin_outlined),
+                const SizedBox(height: 10),
+                AsyncBtn('وصلنا، خلصت الرحلة', icon: Icons.flag_rounded, onTap: () async {
+                  await Store.i.finishRide(widget.r);
+                  if (context.mounted) Navigator.pop(context);
+                }),
+              ]),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }

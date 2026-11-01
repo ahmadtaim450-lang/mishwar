@@ -12,6 +12,15 @@ class Push {
   static const _sender = String.fromEnvironment('FIREBASE_SENDER_ID');
   static const _project = String.fromEnvironment('FIREBASE_PROJECT_ID');
   static bool _started = false;
+  static String? _token;
+
+  /// عند الخروج: هالجهاز ما عاد لازم يوصلو إشعارات هالحساب.
+  static Future<void> stop() async {
+    final t = _token;
+    _token = null;
+    _started = false;
+    if (t != null) await Store.i.unregisterDevice(t);
+  }
 
   static bool get configured =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android && _apiKey.isNotEmpty && _appId.isNotEmpty && _sender.isNotEmpty && _project.isNotEmpty;
@@ -25,8 +34,12 @@ class Push {
       final m = FirebaseMessaging.instance;
       await m.requestPermission();
       final token = await m.getToken();
+      _token = token;
       if (token != null) await Store.i.registerDevice(token, 'android');
-      m.onTokenRefresh.listen((t) => Store.i.registerDevice(t, 'android'));
+      m.onTokenRefresh.listen((t) {
+        _token = t;
+        Store.i.registerDevice(t, 'android');
+      });
       // التطبيق مفتوح: منحدّث البيانات ومنعرض الإشعار جوا التطبيق
       FirebaseMessaging.onMessage.listen((_) => Store.i.refreshAll());
       FirebaseMessaging.onMessageOpenedApp.listen((_) => Store.i.refreshAll());

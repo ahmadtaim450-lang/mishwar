@@ -61,6 +61,7 @@ void main() {
     'الإشعارات': () => const NotificationsScreen(),
     'الرسائل': () => const Scaffold(body: InboxScreen()),
     'نشر رحلة': () => const PublishFlow(),
+    'شاشة السائق': () => DriverLiveScreen(MyRide(tripsFor('حمص', 'حلب').first)),
   };
 
   for (final s in sizes.entries) {

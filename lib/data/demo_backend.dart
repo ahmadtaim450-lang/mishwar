@@ -345,6 +345,9 @@ class DemoBackend implements Backend {
   Future<void> registerDevice(String token, String platform) async {}
 
   @override
+  Future<void> unregisterDevice(String token) async {}
+
+  @override
   Future<List<AppNotification>> notifications() async => List.of(_notes);
 
   @override

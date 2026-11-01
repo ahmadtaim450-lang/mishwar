@@ -396,7 +396,13 @@ class Store extends ChangeNotifier {
         unawaited(refreshAll());
       });
 
+  /// بينادى قبل الخروج (لإلغاء تسجيل جهاز الإشعارات).
+  static Future<void> Function()? onSigningOut;
+
   Future<void> signOut() async {
+    try {
+      await onSigningOut?.call();
+    } catch (_) {}
     await backend.signOut();
     profile = null;
     bookings.clear();
@@ -555,6 +561,12 @@ class Store extends ChangeNotifier {
   Future<void> registerDevice(String token, String platform) async {
     try {
       await backend.registerDevice(token, platform);
+    } catch (_) {}
+  }
+
+  Future<void> unregisterDevice(String token) async {
+    try {
+      await backend.unregisterDevice(token);
     } catch (_) {}
   }
 
