@@ -160,7 +160,7 @@ class _PickPointScreenState extends State<PickPointScreen> with TickerProviderSt
                     CircleMarker(point: _cityPoint, radius: 25000, useRadiusInMeter: true, color: Colors.transparent, borderColor: C.primary.withValues(alpha: .5), borderStrokeWidth: 2),
                   ]),
                   MarkerLayer(markers: [
-                    if (saved != null) Marker(point: saved, width: 40, height: 44, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.check_rounded, color: C.primary)),
+                    if (saved != null) Marker(point: saved, width: 40, height: PlacePin.height, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.check_rounded, color: C.primary)),
                   ]),
                   RichAttributionWidget(showFlutterMapAttribution: false, attributions: [TextSourceAttribution(MapTiles.attribution)]),
                 ],
@@ -170,7 +170,7 @@ class _PickPointScreenState extends State<PickPointScreen> with TickerProviderSt
             IgnorePointer(
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 44),
+                  padding: const EdgeInsets.only(bottom: PlacePin.height),
                   child: PlacePin(icon: _step == 0 ? Icons.groups_rounded : Icons.flag_rounded, color: _tooFar ? C.danger : C.dark),
                 ),
               ),

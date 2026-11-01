@@ -72,7 +72,7 @@ void main() {
   testWidgets('الخريطة: كل سوريا', (t) => shot(t, 'map_all', const MapExploreScreen(day: 1)), skip: !enabled);
   testWidgets('الخريطة: حمص', (t) => shot(t, 'map_homs', const MapExploreScreen(focusCity: 'حمص', day: 1)), skip: !enabled);
   testWidgets('الخريطة: نقطة مختارة', (t) => shot(t, 'map_pick', const MapExploreScreen(focusCity: 'حمص', day: 1), then: () => t.longPressAt(const Offset(195, 330))), skip: !enabled);
-  testWidgets('الخريطة: الفلاتر', (t) => shot(t, 'map_filters', const MapExploreScreen(day: 1), then: () => t.tap(find.text('فلاتر').first)), skip: !enabled);
+  testWidgets('الخريطة: الفلاتر', (t) => shot(t, 'map_filters', const MapExploreScreen(day: 1), then: () => t.tap(find.byIcon(Icons.tune_rounded).first)), skip: !enabled);
   testWidgets('الخريطة: الطبقات', (t) => shot(t, 'map_layers', const MapExploreScreen(day: 1), then: () => t.tap(find.byTooltip('طبقات الخريطة'))), skip: !enabled);
   testWidgets('الخريطة: مسار', (t) => shot(t, 'map_route', const MapExploreScreen(focusCity: 'حمص', day: 1), then: () async {
         await t.longPressAt(const Offset(195, 330));

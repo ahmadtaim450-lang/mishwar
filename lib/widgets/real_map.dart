@@ -132,7 +132,7 @@ class _TripMapState extends State<TripMap> {
                 child: _CityPin(widget.cities[i], last: i == widget.cities.length - 1, first: i == 0),
               ),
           if (widget.pickup != null)
-            Marker(point: widget.pickup!, width: 120, height: 52, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.groups_rounded, color: C.dark, label: 'نقطة التجمع')),
+            Marker(point: widget.pickup!, width: 120, height: PlacePin.height + 28, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.groups_rounded, color: C.dark, label: 'نقطة التجمع')),
           if (widget.me != null)
             Marker(
               point: widget.me!,

@@ -191,7 +191,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
 
   void _recluster(double cz, {bool notify = true}) {
     _clusterZ = cz;
-    final c = clusterize<MapTrip>(_trips, (t) => t.point, cz);
+    final c = clusterize<MapTrip>(_trips, (t) => t.point, cz, cellPx: 72);
     if (notify) {
       setState(() => _clusters = c);
     } else {
@@ -492,6 +492,10 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
             options: MapOptions(
               initialCenter: _initialCenter,
               initialZoom: _initialZoom,
+              // بلا مدينة ولا موقع: كل سوريا بالشاشة
+              initialCameraFit: widget.focusCity == null && !(_loc.point != null && GeoBounds.syria.contains(_loc.point!))
+                  ? CameraFit.bounds(bounds: LatLngBounds(const LatLng(32.3, 35.6), const LatLng(37.3, 42.4)), padding: const EdgeInsets.fromLTRB(16, 170, 16, 250))
+                  : null,
               minZoom: 5.5,
               maxZoom: MapTiles.maxZoom,
               cameraConstraint: CameraConstraint.containCenter(bounds: LatLngBounds(const LatLng(30.5, 33.5), const LatLng(39.0, 44.5))),
@@ -544,7 +548,12 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
               if (_showCities && _zoom < 9.5)
                 MarkerLayer(rotate: true, markers: [
                   for (final e in geo.entries)
-                    Marker(point: LatLng(e.value.$1, e.value.$2), width: 90, height: 22, alignment: Alignment.bottomCenter, child: IgnorePointer(child: CityLabel(e.key, dark: _dark))),
+                    Marker(
+                      point: LatLng(e.value.$1, e.value.$2),
+                      width: 96,
+                      height: 84,
+                      child: IgnorePointer(child: Align(alignment: Alignment.bottomCenter, child: SizedBox(height: 20, child: CityLabel(e.key, dark: _dark)))),
+                    ),
                 ]),
               if (_showSaved && Store.i.savedPlaces.isNotEmpty)
                 MarkerLayer(rotate: true, markers: [
@@ -552,7 +561,7 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
                     Marker(
                       point: s.point,
                       width: 120,
-                      height: 52,
+                      height: PlacePin.height + 28,
                       alignment: Alignment.topCenter,
                       child: GestureDetector(
                         onTap: () => _pick(s.point, known: s.asPlace),
@@ -581,8 +590,8 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
                       ),
                 ]),
               MarkerLayer(markers: [
-                if (_picked != null) Marker(point: _picked!.point, width: 40, height: 44, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.place_rounded, color: C.dark)),
-                if (_routeFrom != null && _routes.isNotEmpty && _routeFrom!.name != 'موقعي') Marker(point: _routeFrom!.point, width: 40, height: 44, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.trip_origin_rounded, color: C.primary)),
+                if (_picked != null) Marker(point: _picked!.point, width: 40, height: PlacePin.height, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.place_rounded, color: C.dark)),
+                if (_routeFrom != null && _routes.isNotEmpty && _routeFrom!.name != 'موقعي') Marker(point: _routeFrom!.point, width: 40, height: PlacePin.height, alignment: Alignment.topCenter, child: const PlacePin(icon: Icons.trip_origin_rounded, color: C.primary)),
                 if (me != null) Marker(point: me, width: 64, height: 64, child: MeDot(heading: _loc.heading, mapRotation: _rotation, weak: _loc.weak)),
               ]),
               RichAttributionWidget(
@@ -683,9 +692,18 @@ class _MapExploreScreenState extends State<MapExploreScreen> with TickerProvider
         ]),
       );
 
-  Widget _fabs() => Positioned(
-        left: 12,
-        bottom: MediaQuery.of(context).size.height * .30 + 12,
+  Widget _fabs() => ListenableBuilder(
+        listenable: _sheetCtl,
+        builder: (context, child) {
+          final size = _sheetCtl.isAttached ? _sheetCtl.size : .3;
+          final h = MediaQuery.of(context).size.height;
+          // الورقة لما تكبر كتير، الأزرار بتختفي بدل ما تطلع فوق البحث
+          return Positioned(
+            left: 12,
+            bottom: size * h + 12,
+            child: IgnorePointer(ignoring: size > .52, child: AnimatedOpacity(opacity: size > .52 ? 0 : 1, duration: const Duration(milliseconds: 160), child: child)),
+          );
+        },
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (_rotation.abs() > 1) ...[
             MapFab(Icons.navigation_rounded, tooltip: 'رجّع الشمال لفوق', dark: _dark, onTap: () => _anim.move(_map.camera.center, _zoom, rotation: 0),

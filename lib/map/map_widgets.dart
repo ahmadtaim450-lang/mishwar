@@ -104,7 +104,7 @@ class ClusterBubble extends StatelessWidget {
   final int count;
   final int? minPrice;
   const ClusterBubble(this.count, {super.key, this.minPrice});
-  static double sizeFor(int n) => (38 + math.log(n) * 7).clamp(38, 64).toDouble();
+  static double sizeFor(int n) => (36 + math.log(n) * 5).clamp(36, 54).toDouble();
   @override
   Widget build(BuildContext context) {
     final d = sizeFor(count);
@@ -207,7 +207,11 @@ class PlacePin extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .25), blurRadius: 6)]),
           child: Icon(icon, color: Colors.white, size: 16),
         ),
+        CustomPaint(size: const Size(10, 7), painter: _Tail(color)),
       ]);
+
+  /// ارتفاع الدبوس بلا الاسم (لحتى رأس السهم يجي على النقطة بالزبط)
+  static const height = 37.0;
 }
 
 /// اسم مدينة على الخريطة (للتكبير البعيد).
@@ -248,11 +252,12 @@ class MapFab extends StatelessWidget {
       child: Semantics(
         button: true,
         label: tooltip,
-        child: Material(
+        child: Container(
+          decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 10, offset: const Offset(0, 3))]),
+          child: Material(
           color: bg,
           shape: const CircleBorder(),
-          elevation: 3,
-          shadowColor: Colors.black38,
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onTap == null
@@ -266,6 +271,7 @@ class MapFab extends StatelessWidget {
               height: 48,
               child: Center(child: busy ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: fg)) : (child ?? Icon(icon, color: fg, size: 22))),
             ),
+          ),
           ),
         ),
       ),
