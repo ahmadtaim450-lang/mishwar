@@ -133,15 +133,17 @@ jobs:
 
       - name: Map screenshots (visual review)
         continue-on-error: true
+        shell: bash
         run: |
-          flutter test test/screenshots_test.dart --update-goldens --dart-define=SCREENSHOTS=true > shots.log 2>&1; tail -3 shots.log
-          ls test/screenshots || true
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: map-screenshots
-          path: test/screenshots/*.png
-          if-no-files-found: warn
+          set +e
+          flutter test test/screenshots_test.dart --update-goldens --dart-define=SCREENSHOTS=true > shots.log 2>&1
+          grep -E "was thrown|Error|Expected|\+[0-9]+" shots.log | tail -15
+          ls test/screenshots 2>/dev/null || exit 0
+          # بفرع منفصل لحتى تنشاف بلا تنزيل artifacts
+          mkdir -p /tmp/shots && cp test/screenshots/*.png /tmp/shots/
+          cd /tmp/shots && git init -q && git checkout -q -b screenshots && git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "لقطات ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
 
       - name: Build APK
         shell: bash
