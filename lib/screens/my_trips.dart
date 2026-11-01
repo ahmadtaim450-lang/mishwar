@@ -286,11 +286,11 @@ class _TicketScreenState extends State<TicketScreen> {
                     ]),
                     const SizedBox(height: 14),
                     Row(children: [
-                      Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(t.dep, style: const TextStyle(fontFamily: kFont, fontSize: 28, color: Colors.white)), Text(t.from, style: const TextStyle(fontFamily: kFont, color: Colors.white)), Text(t.fromSpot, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: kFont, fontSize: 12, color: C.tint))])),
+                      Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [FittedBox(fit: BoxFit.scaleDown, child: Text(t.dep, style: const TextStyle(fontFamily: kFont, fontSize: 28, color: Colors.white))), Text(t.from, style: const TextStyle(fontFamily: kFont, color: Colors.white)), Text(t.fromSpot, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: kFont, fontSize: 12, color: C.tint))])),
                       const Spacer(),
                       const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.directions_car_filled_rounded, color: Colors.white, size: 30)),
                       const Spacer(),
-                      Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(t.arr, style: const TextStyle(fontFamily: kFont, fontSize: 28, color: Colors.white)), Text(t.to, style: const TextStyle(fontFamily: kFont, color: Colors.white)), Text(t.toSpot, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: kFont, fontSize: 12, color: C.tint))])),
+                      Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [FittedBox(fit: BoxFit.scaleDown, child: Text(t.arr, style: const TextStyle(fontFamily: kFont, fontSize: 28, color: Colors.white))), Text(t.to, style: const TextStyle(fontFamily: kFont, color: Colors.white)), Text(t.toSpot, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: kFont, fontSize: 12, color: C.tint))])),
                     ]),
                     const Divider(height: 26, color: Colors.white24),
                     Row(children: [

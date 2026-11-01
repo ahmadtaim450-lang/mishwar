@@ -299,9 +299,10 @@ class Timeline extends StatelessWidget {
   final String a, b, ta, tb, sa, sb;
   const Timeline({required this.a, required this.b, required this.ta, required this.tb, this.sa = '', this.sb = ''});
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 100,
-        child: Row(children: [
+  Widget build(BuildContext context) => IntrinsicHeight(
+        child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 100),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(ta, style: T.label), Text(tb, style: T.label)]),
           const SizedBox(width: 14),
           Padding(
@@ -320,6 +321,7 @@ class Timeline extends StatelessWidget {
             ]),
           ),
         ]),
+        ),
       );
 }
 

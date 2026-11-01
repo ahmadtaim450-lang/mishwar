@@ -263,7 +263,7 @@ class _DestinationsMapState extends State<DestinationsMap> with TickerProviderSt
         width: 80,
         height: 50,
         child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: C.dark, borderRadius: BorderRadius.circular(7)), child: const Text('انت هون', style: TextStyle(fontFamily: kFont, fontSize: 10, color: Colors.white))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: C.dark, borderRadius: BorderRadius.circular(7)), child: const Text('انت هون', textScaler: TextScaler.noScaling, style: TextStyle(fontFamily: kFont, fontSize: 10, color: Colors.white))),
           const SizedBox(height: 3),
           Container(width: 13, height: 13, decoration: BoxDecoration(color: C.dark, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5))),
         ]),
