@@ -121,5 +121,45 @@ ok(del.status === 200, `المدير حذف الحساب (${del.status})`);
 ok((await service.from('profiles').select('id').eq('id', stranger.id)).data?.length === 0, 'الملف انحذف مع المستخدم');
 ok((await fn('admin-delete-user', { user_id: rider.id }, { Authorization: `Bearer ${await tok(admin)}` })).status === 409, 'ما بينحذف حساب ما طلب الحذف');
 
+console.log('▶ الخرائط: الرحلات على الخريطة، نقطة التجمع، الأماكن المحفوظة');
+must(await driver.c.rpc('set_trip_points', { p_trip: tripId, p_pickup_lat: 35.515, p_pickup_lon: 35.79, p_dropoff_lat: null, p_dropoff_lon: null }), 'السائق حدد نقطة التجمع');
+denied(await rider.c.rpc('set_trip_points', { p_trip: tripId, p_pickup_lat: 35.515, p_pickup_lon: 35.79, p_dropoff_lat: null, p_dropoff_lon: null }), 'FORBIDDEN', 'الراكب ما بيغيّر نقطة التجمع');
+const onMap = must(await rider.c.rpc('map_trips', { p_min_lat: 32, p_min_lon: 35, p_max_lat: 37.5, p_max_lon: 42.5, p_lat: 35.52, p_lon: 35.78 }), 'الرحلات ضمن حدود الخريطة');
+const mine = (onMap ?? []).filter((r) => r.trip_id === tripId);
+ok(mine.length === 3 && mine[0].board_city === 'latakia' && mine[0].exact && mine[0].distance_km < 2, 'نقطة صعود لكل مدينة، الأقرب أول، بالنقطة الدقيقة');
+const near = must(await rider.c.rpc('trips_near', { p_lat: 34.73, p_lon: 36.71, p_radius_km: 15 }), 'رحلات قريبة');
+ok(near?.some((r) => r.trip_id === tripId && r.board_city === 'homs'), 'رحلة بتمرق من حمص');
+ok((await anon.rpc('map_trips', { p_min_lat: 32, p_min_lon: 35, p_max_lat: 37.5, p_max_lon: 42.5 })).error, 'الزائر ما بيشوف الخريطة');
+const sp = must(await rider.c.rpc('search_places', { p_q: 'Damaskus' }), 'بحث بالألماني');
+ok(sp?.[0]?.id === 'damascus', 'دمشق أول نتيجة');
+must(await rider.c.rpc('save_place', { p_label: 'البيت', p_lat: 35.52, p_lon: 35.79, p_kind: 'home', p_address: 'الزراعة' }), 'حفظ البيت');
+ok((await rider.c.rpc('my_places')).data?.length === 1 && (await driver.c.rpc('my_places')).data?.length === 0, 'الأماكن المحفوظة خاصة');
+ok((await rider.c.from('saved_places').insert({ user_id: rider.id, label: 'x', lat: 35.5, lon: 35.8 })).error, 'ما في كتابة مباشرة على الجدول');
+
+console.log('▶ دالة الخرائط (geo)');
+const geo = async (u, body) => {
+  const r = await fn('geo', body, u ? { Authorization: `Bearer ${await tok(u)}` } : {});
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+};
+ok((await geo(null, { op: 'geocode', q: 'حمص' })).status === 401, 'geo بلا دخول مرفوض');
+ok((await geo(rider, { op: 'nope' })).status === 400, 'عملية غلط');
+ok((await geo(rider, { op: 'reverse', lat: 52.5, lon: 13.4 })).body.error === 'outside_syria', 'برّا سوريا مرفوض');
+const route = { op: 'route', points: [{ lat: 35.52, lon: 35.78 }, { lat: 33.51, lon: 36.28 }], alternatives: true };
+const r1 = await geo(rider, route);
+ok(r1.status === 200 && r1.body.routes?.length === 2 && r1.body.routes[0].geometry.length >= 2 && r1.body.cached === false, `مسار وبديل (${r1.status})`);
+const r2 = await geo(rider, route);
+ok(r2.status === 200 && r2.body.cached === true, 'الطلب التاني من الكاش');
+const ac = await geo(rider, { op: 'autocomplete', q: 'حمص', lang: 'ar' });
+ok(ac.body.results?.[0]?.name === 'حمص', 'اقتراحات أثناء الكتابة');
+const rv = await geo(rider, { op: 'reverse', lat: 35.5196, lon: 35.7832 });
+ok(rv.body.result?.lat === 35.5196, 'عنوان من إحداثيات');
+ok((await service.from('geo_cache').select('key', { count: 'exact', head: true })).count >= 3, 'النتائج انحفظت بالكاش');
+ok((await rider.c.from('geo_cache').select('key')).data?.length === 0, 'الكاش مو مقروء للمستخدمين');
+let limited = false;
+for (let i = 0; i < 8 && !limited; i++) limited = (await geo(rider, { op: 'reverse', lat: 35.0 + i / 100, lon: 36.0 })).status === 429;
+ok(limited, 'حد الطلبات بالساعة');
+ok((await geo(driver, { op: 'reverse', lat: 34.9, lon: 36.1 })).status === 200, 'الحد لكل مستخدم لحالو');
+ok((await geo(driver, route)).body.cached === true, 'الكاش مشترك بين المستخدمين');
+
 console.log(fails ? `✗ ${fails} فشل` : '✓ الاختبار الشامل نجح');
 process.exit(fails ? 1 : 0);

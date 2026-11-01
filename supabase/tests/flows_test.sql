@@ -209,6 +209,107 @@ select t.expect_error($$select public.my_bookings()$$, 'DENIED');
 select t.expect_error($$select * from public.trips$$, 'DENIED');
 reset role;
 
+\echo '▶ الخرائط: نقطة التجمع والسياج الجغرافي'
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000009', true);
+select t.expect_error(format($$select public.set_trip_points(%L, 35.515, 35.79)$$, (select v from t.ids where k = 'trip')), 'FORBIDDEN');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+select t.expect_error(format($$select public.set_trip_points(%L, 33.51, 36.27)$$, (select v from t.ids where k = 'trip')), 'POINT_TOO_FAR');
+select t.expect_error(format($$select public.set_trip_points(%L, 35.515, null)$$, (select v from t.ids where k = 'trip')), 'INVALID_INPUT');
+select public.set_trip_points((select v from t.ids where k = 'trip'), 35.5150, 35.7900, 33.5085, 36.2900);
+-- قراءة ضعيفة الدقة ما بتطلق الإشعار
+select public.update_live_location((select v from t.ids where k = 'trip'), 35.516, 35.791, 2000, 0);
+select t.expect_error(format($$select public.update_live_location(%L, 35.516, 35.791, -1, 0)$$, (select v from t.ids where k = 'trip')), 'INVALID_INPUT');
+reset role;
+select t.ok((select count(*) from public.notifications where kind = 'driver_near') = 0, 'inaccurate fix: no geofence alert');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+select public.update_live_location((select v from t.ids where k = 'trip'), 35.520, 35.795, 15, 0);
+select public.update_live_location((select v from t.ids where k = 'trip'), 35.518, 35.792, 15, 0);
+reset role;
+select t.ok((select count(*) from public.notifications where kind = 'driver_near' and user_id = '00000000-0000-0000-0000-000000000001') = 1, 'driver near → rider alerted once');
+select t.ok((select near_notified_at is not null from public.bookings where id = (select v from t.ids where k = 'b1')), 'alert recorded');
+
+\echo '▶ الخرائط: الرحلات ضمن حدود الخريطة وبالقرب'
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select t.ok((select count(*) from public.map_trips(35.3, 35.6, 35.7, 36.0)) = 1, 'trip boards inside latakia view');
+select t.ok((select exact and abs(lat - 35.515) < 0.0001 from public.map_trips(35.3, 35.6, 35.7, 36.0)), 'exact pickup point used');
+select t.ok((select count(*) from public.map_trips(36.0, 36.9, 36.4, 37.4)) = 0, 'nothing in aleppo view');
+select t.ok((select board_city = 'homs' and to_city = 'damascus' and price_syp < 75000 and not exact from public.map_trips(34.6, 36.5, 34.9, 36.9)), 'boarding at a stop = segment price');
+select t.ok((select count(*) from public.map_trips(32, 35, 37.5, 42.5)) = 3, 'one row per boarding point (latakia, tartus, homs)');
+select t.ok((select to_city from public.map_trips(35.3, 35.6, 35.7, 36.0, p_to => 'homs')) = 'homs', 'destination filter → segment');
+select t.ok((select count(*) from public.map_trips(32, 35, 37.5, 42.5, p_kinds => array['women']::public.ride_kind[])) = 0, 'kind filter');
+select t.ok((select count(*) from public.map_trips(32, 35, 37.5, 42.5, p_seats => 5)) = 0, 'seats filter');
+select t.ok((select count(*) from public.map_trips(32, 35, 37.5, 42.5, p_max_price => 30000)) < 3, 'price filter');
+select t.ok((select distance_km < 2 from public.trips_near(35.52, 35.78, 10) limit 1), 'trips near me sorted by distance');
+select t.ok((select count(*) from public.trips_near(36.20, 37.13, 20)) = 0, 'nothing near aleppo');
+select t.ok((select array_agg(board_city order by distance_km) from public.map_trips(32, 35, 37.5, 42.5, p_lat => 34.73, p_lon => 36.71)) = array['homs', 'tartus', 'latakia'], 'ordered by distance from me');
+select t.expect_error($$select * from public.map_trips(36, 35, 35, 36)$$, 'INVALID_INPUT');
+select t.expect_error($$select * from public.trips_near(35.5, 35.8, 1000)$$, 'INVALID_INPUT');
+select t.expect_error($$select * from public.map_trips(35, 35, 36, 36, p_seats => 0)$$, 'INVALID_INPUT');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
+select t.ok((select count(*) from public.map_trips(32, 35, 37.5, 42.5)) = 0, 'woman does not see men trip on map');
+select t.ok((select departures from public.city_activity(7) where city_id = 'latakia') = 1, 'city activity');
+
+\echo '▶ الخرائط: البحث الجغرافي'
+select t.ok((select id from public.search_places('حمص') limit 1) = 'homs', 'search arabic');
+select t.ok((select id from public.search_places('Damaskus') limit 1) = 'damascus', 'search german');
+select t.ok((select id from public.search_places('lat') limit 1) = 'latakia', 'search english prefix');
+select t.ok((select id from public.search_places('اللاذقيه') limit 1) = 'latakia', 'search normalized ة/ال');
+select t.ok((select id from public.search_places('', 35.36, 35.93) limit 1) = 'jableh', 'empty query → nearest first');
+select t.ok((select count(*) from public.search_places('zzzz')) = 0, 'no match');
+select t.ok((select id from public.nearest_city(35.40, 35.90)) = 'jableh', 'nearest city');
+select t.expect_error($$select * from public.search_places(repeat('x', 81))$$, 'INVALID_INPUT');
+select t.expect_error($$select * from public.nearest_city(null, 1)$$, 'INVALID_INPUT');
+
+\echo '▶ الخرائط: الأماكن المحفوظة'
+select public.save_place('البيت', 35.52, 35.79, 'home', 'الزراعة');
+select public.save_place('بيت أهلي', 35.53, 35.80, 'home');
+select t.ok((select count(*) from public.my_places() where kind = 'home') = 1, 'one home only');
+select public.save_place('الجامعة', 35.54, 35.81);
+select public.save_place('الجامعة', 35.55, 35.82);
+select t.ok((select lat from public.my_places() where label = 'الجامعة') = 35.55, 'same label updates');
+select t.ok((select kind from public.search_places('جامع') limit 1) = 'saved', 'saved places are searchable');
+select t.expect_error($$select public.save_place('برلين', 52.5, 13.4)$$, 'OUTSIDE_SYRIA');
+select t.expect_error($$select public.save_place('', 35.5, 35.8)$$, 'INVALID_INPUT');
+select t.expect_error($$select public.save_place('x', 35.5, 35.8, 'castle')$$, 'INVALID_INPUT');
+select t.expect_error($$insert into public.saved_places (user_id, label, lat, lon) values (auth.uid(), 'x', 35.5, 35.8)$$, 'DENIED');
+insert into t.ids values ('place', (select id from public.my_places() where label = 'الجامعة'));
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000009', true);
+select t.ok((select count(*) from public.my_places()) = 0, 'others cannot see my places');
+select t.ok((select count(*) from public.saved_places) = 0, 'RLS on saved places');
+select t.ok((select count(*) from public.search_places('جامع') where kind = 'saved') = 0, 'saved places private in search');
+select t.expect_error(format($$select public.delete_place(%L)$$, (select v from t.ids where k = 'place')), 'NOT_FOUND');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
+select public.delete_place((select v from t.ids where k = 'place'));
+select t.ok((select count(*) from public.my_places()) = 1, 'deleted');
+
+\echo '▶ الخرائط: نقاط التجمع (الإدارة)'
+select t.expect_error($$select public.admin_upsert_place(null, 'homs', 'كراج تجريبي', 'garage', 34.73, 36.71)$$, 'FORBIDDEN');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select t.expect_error($$select public.admin_upsert_place(null, 'homs', 'كراج بعيد', 'garage', 33.51, 36.27)$$, 'POINT_TOO_FAR');
+select t.expect_error($$select public.admin_upsert_place(null, 'homs', 'برّا', 'garage', 40, 30)$$, 'OUTSIDE_SYRIA');
+insert into t.ids values ('poi', public.admin_upsert_place(null, 'homs', 'كراج الانطلاق الشمالي', 'garage', 34.745, 36.715, 'North Garage', 'Nordbusbahnhof'));
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select t.ok((select count(*) from public.city_places('homs')) = 1, 'city places');
+select t.ok((select kind from public.search_places('Nordbus') limit 1) = 'garage', 'poi searchable in german');
+select t.expect_error(format($$update public.places set name_ar = 'تخريب' where id = %L$$, (select v from t.ids where k = 'poi')), 'DENIED');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select public.admin_set_place_active((select v from t.ids where k = 'poi'), false);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select t.ok((select count(*) from public.city_places('homs')) = 0, 'inactive place hidden');
+select t.ok((select count(*) from public.places) = 0, 'inactive place hidden (RLS)');
+select t.expect_error($$select public.geo_take(auth.uid())$$, 'DENIED');
+reset role;
+select t.ok((select count(*) from public.audit_log where action like 'place.%') = 2, 'place changes audited');
+select t.ok(public.geo_take('00000000-0000-0000-0000-000000000001', 2) and public.geo_take('00000000-0000-0000-0000-000000000001', 2)
+            and not public.geo_take('00000000-0000-0000-0000-000000000001', 2), 'geo rate limit');
+set local role anon;
+select t.expect_error($$select * from public.map_trips(32, 35, 37.5, 42.5)$$, 'DENIED');
+select t.expect_error($$select * from public.search_places('حمص')$$, 'DENIED');
+reset role;
+
 \echo '▶ الإلغاء بيرجّع المقاعد'
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);

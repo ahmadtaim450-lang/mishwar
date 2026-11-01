@@ -420,3 +420,6 @@ verify_jwt = false
 
 [functions.admin-delete-user]
 verify_jwt = true
+
+[functions.geo]
+verify_jwt = true
