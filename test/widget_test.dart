@@ -104,9 +104,14 @@ void main() {
   });
 
   testWidgets('رقم غلط بالدخول بيعطي رسالة واضحة', (t) async {
+    t.view.physicalSize = const Size(390, 844) * 2;
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
     await t.pumpWidget(wrap(const LoginScreen()));
     await settle(t);
     await t.enterText(find.byType(TextField), '123');
+    await t.ensureVisible(find.text('متابعة'));
+    await t.pump();
     await t.tap(find.text('متابعة'));
     await settle(t);
     expect(find.textContaining('رقم الموبايل مو صحيح'), findsOneWidget);
