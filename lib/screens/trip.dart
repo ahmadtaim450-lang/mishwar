@@ -115,7 +115,7 @@ class TripDetailsScreen extends StatelessWidget {
 
   Widget _info(IconData i, String s) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: Row(children: [Icon(i, color: C.primary, size: 20), const SizedBox(width: 10), Text(s, style: T.body)]),
+        child: Row(children: [Icon(i, color: C.primary, size: 20), const SizedBox(width: 10), Expanded(child: Text(s, style: T.body))]),
       );
 }
 

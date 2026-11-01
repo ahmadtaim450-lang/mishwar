@@ -190,7 +190,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool close;
   const TopBar({this.title = '', this.sub, this.actions = const [], this.close = false});
   @override
-  Size get preferredSize => const Size.fromHeight(76);
+  Size get preferredSize => Size.fromHeight(sub == null ? 76 : 90);
   @override
   Widget build(BuildContext context) => SafeArea(
         bottom: false,
@@ -201,8 +201,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                if (title.isNotEmpty) Text(title, style: T.h3),
-                if (sub != null) Text(sub!, style: T.small),
+                if (title.isNotEmpty) Text(title, style: T.h3, maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (sub != null) Text(sub!, style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
             ),
             ...actions,
@@ -256,7 +256,7 @@ class Badge2 extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-        child: Text(text, style: TextStyle(color: fg, fontSize: 12.5, fontFamily: kFont)),
+        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg, fontSize: 12.5, fontFamily: kFont)),
       );
 }
 
@@ -293,7 +293,7 @@ class Timeline extends StatelessWidget {
   const Timeline({required this.a, required this.b, required this.ta, required this.tb, this.sa = '', this.sb = ''});
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 96,
+        height: 100,
         child: Row(children: [
           Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(ta, style: T.label), Text(tb, style: T.label)]),
           const SizedBox(width: 14),
@@ -308,8 +308,8 @@ class Timeline extends StatelessWidget {
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(a, style: T.label), if (sa.isNotEmpty) Text(sa, style: T.small)]),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(b, style: T.label), if (sb.isNotEmpty) Text(sb, style: T.small)]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(a, style: T.label, maxLines: 1, overflow: TextOverflow.ellipsis), if (sa.isNotEmpty) Text(sa, style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis)]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(b, style: T.label, maxLines: 1, overflow: TextOverflow.ellipsis), if (sb.isNotEmpty) Text(sb, style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis)]),
             ]),
           ),
         ]),

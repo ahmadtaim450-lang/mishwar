@@ -302,7 +302,10 @@ class TripCard extends StatelessWidget {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(child: Timeline(a: t.from, b: t.to, ta: t.dep, tb: t.arr, sa: t.fromSpot, sb: t.toSpot)),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(money(t.price), style: const TextStyle(fontFamily: kFont, fontSize: 17, color: C.primary)),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 110),
+                  child: FittedBox(fit: BoxFit.scaleDown, child: Text(money(t.price), style: const TextStyle(fontFamily: kFont, fontSize: 17, color: C.primary))),
+                ),
                 const Text('للمقعد', style: T.small),
                 const SizedBox(height: 6),
                 if (t.instant) const Badge2('⚡ فوري', bg: C.warnBg, fg: C.warn),
@@ -314,16 +317,20 @@ class TripCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t.driver.name, style: T.label),
-                  Text('★ ${t.driver.rating} · ${t.car}', style: T.small),
+                  Text(t.driver.name, style: T.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('★ ${t.driver.rating} · ${t.car}', style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis),
                 ]),
               ),
-              KindBadge(t.kind),
               const SizedBox(width: 6),
-              if (mine)
-                const Badge2('حجزت فيها', bg: C.dark, fg: Colors.white)
-              else
-                Badge2(full ? 'باقي ${seatsLabel(t.seatsLeft)} بس' : 'باقي ${seatsLabel(t.seatsLeft)}', bg: t.seatsLeft == 1 ? C.warnBg : C.tint, fg: t.seatsLeft == 1 ? C.warn : C.dark),
+              Flexible(
+                child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 4, children: [
+                  KindBadge(t.kind),
+                  if (mine)
+                    const Badge2('حجزت فيها', bg: C.dark, fg: Colors.white)
+                  else
+                    Badge2(full ? 'باقي ${seatsLabel(t.seatsLeft)} بس' : 'باقي ${seatsLabel(t.seatsLeft)}', bg: t.seatsLeft == 1 ? C.warnBg : C.tint, fg: t.seatsLeft == 1 ? C.warn : C.dark),
+                ]),
+              ),
             ]),
             if (t.stops.isNotEmpty)
               Padding(
@@ -331,7 +338,7 @@ class TripCard extends StatelessWidget {
                 child: Row(children: [
                   const Icon(Icons.alt_route_rounded, size: 16, color: C.muted),
                   const SizedBox(width: 6),
-                  Text('عبر ${t.stops.join('، ')} · ${t.duration}', style: T.small),
+                  Expanded(child: Text('عبر ${t.stops.join('، ')} · ${t.duration}', style: T.small, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ]),
               ),
           ]),
