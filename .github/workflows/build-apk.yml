@@ -110,7 +110,9 @@ jobs:
           set +e
           flutter test --reporter expanded > test.log 2>&1
           status=$?
-          tail -5 test.log
+          tail -3 test.log
+          echo "عدد الاختبارات بكل ملف:"
+          grep -oE "test/[a-z_/]+\.dart: " test.log | sort | uniq -c
           if [ $status -ne 0 ]; then
             msg=$(grep -E -A3 "was thrown|\[E\]|Expected:|Actual:|Error:|overflowed|(Row|Column|Flex|Text)[A-Za-z]*:file:///.*lib/" test.log | grep -v "widget_test.dart line\|══\|^--$\|^#[0-9]" | awk '!seen[$0]++' | head -250 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error::$msg"

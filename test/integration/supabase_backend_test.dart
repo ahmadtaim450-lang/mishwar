@@ -7,6 +7,8 @@ import 'package:mishwar/core/errors.dart';
 import 'package:mishwar/data/mock.dart';
 import 'package:mishwar/data/store.dart';
 import 'package:mishwar/data/supabase_backend.dart';
+import 'package:mishwar/map/models.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const url = String.fromEnvironment('SUPABASE_TEST_URL');
@@ -110,6 +112,36 @@ void main() {
     expect(seg.fullFrom, 'اللاذقية');
     expect(seg.price, lessThan(75000));
     expect(seg.dep.compareTo('09:30'), greaterThan(0), reason: 'بيوصل لطرطوس بعد الانطلاق');
+
+    // الخرائط: نقطة التجمع، الرحلات ضمن حدود الخريطة، البحث، الأماكن، والمسار
+    await driver.setTripPoints(published, pickup: const LatLng(35.515, 35.79));
+    await expectLater(() => driver.setTripPoints(published, pickup: const LatLng(33.51, 36.27)), throwsA(predicate((e) => AppException.from(e!).code == 'POINT_TOO_FAR')));
+    expect((await rider.tripPoints(published)).$1, const LatLng(35.515, 35.79));
+    final onMap = await rider.mapTrips(const GeoBounds(35.3, 35.6, 35.7, 36.0), const MapFilter(day: 2), me: const LatLng(35.52, 35.78));
+    final pin = onMap.firstWhere((m) => m.tripId == published.id);
+    expect(pin.board, 'اللاذقية');
+    expect(pin.to, 'دمشق');
+    expect(pin.exact, isTrue);
+    expect(pin.distanceKm, lessThan(2));
+    expect(hmDamascus(pin.departure), '09:30');
+    expect(dayOffset(pin.departure), 2);
+    final atHoms = await rider.mapTrips(const GeoBounds(34.6, 36.5, 34.9, 36.9), const MapFilter(day: 2, to: 'دمشق'));
+    expect(atHoms.firstWhere((m) => m.tripId == published.id).price, lessThan(75000), reason: 'الصعود من حمص = سعر الجزء');
+    expect((await rider.tripsNear(const LatLng(34.73, 36.71), 15, const MapFilter())).any((m) => m.tripId == published.id && m.board == 'حمص'), isTrue);
+    expect((await rider.searchPlaces('Damaskus')).first.name, 'دمشق');
+    expect((await rider.nearestCity(const LatLng(35.40, 35.90)))!.$1, 'جبلة');
+    final home = await rider.savePlace('البيت', const LatLng(35.52, 35.79), kind: 'home');
+    expect((await rider.myPlaces()).single.id, home.id);
+    expect(await driver.myPlaces(), isEmpty);
+    await rider.deletePlace(home.id);
+    expect(await rider.cityActivity(), isNotEmpty);
+    // دالة geo على السيرفر (بالـ CI المزود تجريبي ثابت)
+    final routes = await rider.route(const [LatLng(35.52, 35.78), LatLng(33.51, 36.28)]);
+    expect(routes.length, 2);
+    expect(routes.first.approximate, isFalse);
+    expect(routes.first.km, greaterThan(200));
+    expect((await rider.geocodeSuggest('حمص')).first.name, 'حمص');
+    expect((await rider.reverseGeocode(const LatLng(35.5196, 35.7832)))!.point.latitude, 35.5196);
 
     // الحجز والموافقة
     final b = await rider.requestBooking(t, 2, message: 'معي شنتاية');
