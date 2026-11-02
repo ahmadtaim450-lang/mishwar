@@ -1,0 +1,31 @@
+name: Export images
+
+# بينزّل صور التطبيق (المولّدة بهيغسفيلد) لفرع images لحتى تنستعمل بالعرض التقديمي والمواد التسويقية
+on:
+  push:
+    branches: [main]
+    paths: ['assets/manifest.txt', '.github/workflows/export-images.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download and shrink
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick > /dev/null
+          mkdir -p /tmp/img
+          grep '^assets/images/' assets/manifest.txt | while read -r path url; do
+            name=$(basename "$path")
+            curl -fsSL -o "/tmp/img/$name" "$url" && convert "/tmp/img/$name" -resize '1400x1400>' -strip -quality 85 "/tmp/img/${name%.png}.jpg" && rm "/tmp/img/$name" || echo "skip $name"
+          done
+          ls /tmp/img | wc -l
+      - name: Push to images branch
+        run: |
+          cd /tmp/img && git init -q && git checkout -q -b images && git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "صور ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" images
